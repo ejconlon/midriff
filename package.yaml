@@ -1,20 +1,21 @@
 name:                midriff
 version:             0.1.0
-github:              "githubuser/midriff"
+github:              "ejconlon/midriff"
 license:             BSD3
-author:              "Author name here"
-maintainer:          "example@example.com"
-copyright:           "(c) 2020 Author name here"
+author:              "Eric Conlon"
+maintainer:          "ejconlon@gmail.com"
+copyright:           "(c) 2020 Eric Conlon"
 # category:            Undefined
 # synopsis:            Undefined
 
 extra-source-files:
 - README.md
 
-description: Please see the README on GitHub at <https://github.com/githubuser/midriff#readme>
+description: Please see the README on GitHub at <https://github.com/ejconlon/midriff#readme>
 
 dependencies:
 - base >= 4.12 && < 5
+- RtMidi >= 0.2.0.0 && < 1
 
 default-extensions:
   - ConstraintKinds
