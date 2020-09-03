@@ -15,6 +15,17 @@ packages:
   original:
     git: https://github.com/riottracker/RtMidi.git
     commit: aae97fceb6c2e52d7313a902e3f79a38dc9bbabe
+- completed:
+    name: simple-parser
+    version: 0.1.0
+    git: https://github.com/ejconlon/simple-parser.git
+    pantry-tree:
+      size: 1191
+      sha256: 1849949d9eb67f0dec60aaae6da0e5c2fcef3fc4d5bf2dc489165073415c9480
+    commit: a86d484eb2cd88077f662972ff36381e4d7f3f02
+  original:
+    git: https://github.com/ejconlon/simple-parser.git
+    commit: a86d484eb2cd88077f662972ff36381e4d7f3f02
 snapshots:
 - completed:
     size: 532377

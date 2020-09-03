@@ -6,3 +6,5 @@ packages:
 extra-deps:
 - git: https://github.com/riottracker/RtMidi.git
   commit: aae97fceb6c2e52d7313a902e3f79a38dc9bbabe
+- git: https://github.com/ejconlon/simple-parser.git
+  commit: a86d484eb2cd88077f662972ff36381e4d7f3f02

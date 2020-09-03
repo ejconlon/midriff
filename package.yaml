@@ -15,7 +15,12 @@ description: Please see the README on GitHub at <https://github.com/ejconlon/mid
 
 dependencies:
 - base >= 4.12 && < 5
+- list-t >= 1.0.4 && < 2
+- little-rio >= 0.1.1 && < 1
+- resourcet >= 1.2.4.2 && < 2
 - RtMidi >= 0.2.0.0 && < 1
+- simple-parser >= 0.1.0 && < 1
+- unliftio-core >= 0.1.2.0 && < 1
 
 default-extensions:
   - ConstraintKinds
