@@ -66,6 +66,7 @@ decodeChanVoice msg bs = case (msg, bs) of
 
 decodeOther :: Word8 -> ShortBytes Int -> Maybe BasicMidiMsg
 decodeOther lo bs = case (lo, bs) of
+  -- TODO(ejconlon) parse timecode quarter frame (msg 1)
   (2, ShortBytes2 a b) -> Just (MidiSongPosition (a + shiftL b 7))
   (3, ShortBytes1 a)   -> Just (MidiSongSelect a)
   (6, ShortBytes0)     -> Just MidiTuneRequest

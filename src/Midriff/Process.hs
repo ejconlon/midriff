@@ -2,10 +2,13 @@ module Midriff.Process where
 
 import Control.Monad.IO.Class (MonadIO (..))
 import Data.Conduit (ConduitT, await, yield)
+import qualified Data.Conduit.Combinators as CC
+import Data.Word (Word8)
+import Midriff.Msg (MidiEvent (..), MidiParsed, decodeEvent, encodeParsed)
 import Midriff.Time (TimeDelta, awaitDelta, currentMonoTime)
 
-delay :: MonadIO m => (i -> (TimeDelta, o)) -> ConduitT i o m ()
-delay f = go where
+delayC :: MonadIO m => (i -> (TimeDelta, o)) -> ConduitT i o m ()
+delayC f = go where
   go = do
     m <- liftIO currentMonoTime
     loop m
@@ -19,4 +22,11 @@ delay f = go where
         yield o
         loop m'
 
--- msgDelay :: MonadIO m => ConduitT MidiEvent MidiMsg
+decodeEventC :: Monad m => ConduitT (Double, [Word8]) MidiEvent m ()
+decodeEventC = CC.map (uncurry decodeEvent)
+
+msgDelayC :: MonadIO m => ConduitT MidiEvent MidiParsed m ()
+msgDelayC = delayC (\(MidiEvent td mp) -> (td, mp))
+
+encodeParsedC :: Monad m => ConduitT MidiParsed [Word8] m ()
+encodeParsedC = CC.map encodeParsed

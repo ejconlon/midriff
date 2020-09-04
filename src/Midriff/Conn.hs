@@ -2,6 +2,8 @@ module Midriff.Conn
   ( ConnResult
   , withInputDevice
   , withOutputDevice
+  , allocateInputDevice
+  , allocateOutputDevice
   , inputConn
   , outputConn
   ) where
@@ -10,7 +12,7 @@ import Control.Concurrent.STM (atomically)
 import Control.Monad (forever, void)
 import Control.Monad.IO.Class (MonadIO (..))
 import Control.Monad.IO.Unlift (MonadUnliftIO)
-import Control.Monad.Trans.Resource (MonadResource)
+import Control.Monad.Trans.Resource (MonadResource, ReleaseKey, allocate)
 import Data.Conduit (ConduitT, await, bracketP)
 import Data.Void (Void)
 import Data.Word (Word8)
@@ -44,6 +46,9 @@ inputDeviceRelease = closeDevice
 withInputDevice :: MonadUnliftIO m => Maybe DeviceConfig -> (InputDevice -> m a) -> m a
 withInputDevice dcfg = bracket (liftIO (inputDeviceAcquire dcfg)) (liftIO . inputDeviceRelease)
 
+allocateInputDevice :: MonadResource m => Maybe DeviceConfig -> m (ReleaseKey, InputDevice)
+allocateInputDevice dcfg = allocate (liftIO (inputDeviceAcquire dcfg)) (liftIO . inputDeviceRelease)
+
 outputDeviceAcquire :: Maybe DeviceConfig -> IO OutputDevice
 outputDeviceAcquire mpc = do
   case mpc of
@@ -55,6 +60,9 @@ outputDeviceRelease = closeDevice
 
 withOutputDevice :: MonadUnliftIO m => Maybe DeviceConfig -> (OutputDevice -> m a) -> m a
 withOutputDevice dcfg = bracket (liftIO (outputDeviceAcquire dcfg)) (liftIO . outputDeviceRelease)
+
+allocateOutputDevice :: MonadResource m => Maybe DeviceConfig -> m (ReleaseKey, OutputDevice)
+allocateOutputDevice dcfg = allocate (liftIO (outputDeviceAcquire dcfg)) (liftIO . outputDeviceRelease)
 
 inputAcquire :: InputConfig -> (TEvent -> InputCallback) -> InputDevice -> IO InputState
 inputAcquire (InputConfig (Config name pid) migs) cb d = do
