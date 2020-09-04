@@ -6,11 +6,11 @@ module Midriff.Unlifted
   ) where
 
 import Control.Concurrent.STM (atomically)
-import Control.Monad.IO.Class (MonadIO (..))
 import Control.Monad (forever)
-import Data.Void (Void)
-import Midriff.DQueue (DQueue, newDQueue, writeDQueue, readDQueue)
+import Control.Monad.IO.Class (MonadIO (..))
 import Data.Conduit (ConduitT, await, yield)
+import Data.Void (Void)
+import Midriff.DQueue (DQueue, newDQueue, readDQueue, writeDQueue)
 
 newDQueueUnlifted :: MonadIO m => Int -> m (DQueue a)
 newDQueueUnlifted = liftIO . atomically . newDQueue

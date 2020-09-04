@@ -10,7 +10,7 @@ module Midriff.Msg
   , decodeMsg
   ) where
 
-import Data.Bits ((.&.), shiftL, shiftR)
+import Data.Bits (shiftL, shiftR, (.&.))
 import Data.Word (Word8)
 
 -- Time delta in nanoseconds since last event
@@ -23,7 +23,7 @@ timeDeltaFromNanos :: Integral a => a -> TimeDelta
 timeDeltaFromNanos n = TimeDelta (fromIntegral n)
 
 timeDeltaToFracSecs :: RealFrac a => TimeDelta -> a
-timeDeltaToFracSecs (TimeDelta n) = (fromIntegral n) / 1000000000
+timeDeltaToFracSecs (TimeDelta n) = fromIntegral n / 1000000000
 
 timeDeltaToNanos :: TimeDelta -> Integer
 timeDeltaToNanos = unTimeDelta
@@ -150,7 +150,7 @@ endingWith a = go [] where
   go acc rest =
     case rest of
       [] -> Nothing
-      [x] -> if (x == a) then Just (reverse acc) else Nothing
+      [x] -> if x == a then Just (reverse acc) else Nothing
       x:xs -> go (x:acc) xs
 
 decodeSysexMsg :: [Word8] -> Maybe [Word8]
@@ -161,8 +161,7 @@ decodeSysexMsg bytes =
 
 decodeMsg :: [Word8] -> Double -> MidiEvent
 decodeMsg bytes fracs = MidiEvent (maybe (Left bytes) Right res) (timeDeltaFromFracSecs fracs) where
-  res =
-    if isShortMsg bytes then decodeShortMsg bytes >>= translateShortMsg
-    else if isSysexMsg bytes then fmap MidiSysEx (decodeSysexMsg bytes)
-    else Nothing
-
+  res
+    | isShortMsg bytes = decodeShortMsg bytes >>= translateShortMsg
+    | isSysexMsg bytes = fmap MidiSysEx (decodeSysexMsg bytes)
+    | otherwise = Nothing

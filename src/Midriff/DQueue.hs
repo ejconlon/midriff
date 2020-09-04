@@ -12,11 +12,11 @@ module Midriff.DQueue
   , capacityDQueue
   ) where
 
-import Data.Sequence (Seq (..))
-import qualified Data.Sequence as Seq
 import Control.Concurrent.STM (STM, retry)
 import Control.Concurrent.STM.TVar (TVar)
 import qualified Control.Concurrent.STM.TVar as TVar
+import Data.Sequence (Seq (..))
+import qualified Data.Sequence as Seq
 
 data DQueueState a = DQueueState
   { dqsBody :: !(Seq a)
