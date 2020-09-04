@@ -1,19 +1,21 @@
 module Midriff.Conn
-  ( virtualInputConn
+  ( ConnResult
+  , virtualInputConn
   , virtualOutputConn
   ) where
 
 import Control.Concurrent.STM (atomically)
 import Control.Monad (forever, void)
 import Control.Monad.IO.Class (MonadIO (..))
+import Control.Monad.IO.Unlift (MonadUnliftIO)
 import Control.Monad.Trans.Resource (MonadResource)
-import Data.Conduit (ConduitT, await, bracketP)
+import Data.Conduit (ConduitT, await, bracketP, tryC)
 import Data.Void (Void)
 import Data.Word (Word8)
 import Midriff.TEvent (TEvent, newTEvent, setTEvent)
 import Midriff.Unlifted (DQueue, eventWriteDQueueUnlifted, newDQueueUnlifted, sourceDQueue)
-import Sound.RtMidi (InputDevice, OutputDevice, cancelCallback, closeDevice, closePort, defaultInput, defaultOutput,
-                     openVirtualPort, sendMessage, setCallback)
+import Sound.RtMidi (Error, InputDevice, OutputDevice, cancelCallback, closeDevice, closePort, defaultInput,
+                     defaultOutput, openVirtualPort, sendMessage, setCallback)
 
 type InputCallback = Double -> [Word8] -> IO ()
 
@@ -42,10 +44,12 @@ virtualInputRelease (InputState d c) = do
 inputCb :: InputQueue -> TEvent -> InputCallback
 inputCb q e d w = void (eventWriteDQueueUnlifted q e (d, w))
 
-virtualInputConn :: MonadResource m => String -> Int -> ConduitT Void (Int, (Double, [Word8])) m ()
+type ConnResult a = Either Error a
+
+virtualInputConn :: (MonadResource m, MonadUnliftIO m) => String -> Int -> ConduitT Void (Int, (Double, [Word8])) m (ConnResult ())
 virtualInputConn name cap = do
   q <- newDQueueUnlifted cap
-  bracketP (virtualInputAcquire name (inputCb q)) virtualInputRelease (\(InputState _ c) -> sourceDQueue q c)
+  tryC (bracketP (virtualInputAcquire name (inputCb q)) virtualInputRelease (\(InputState _ c) -> sourceDQueue q c))
 
 newtype OutputState = OutputState
   { ostDevice :: OutputDevice
@@ -69,5 +73,5 @@ outputConduit (OutputState d) = forever $ do
     Nothing -> pure ()
     Just m -> liftIO (sendMessage d m)
 
-virtualOutputConn :: MonadResource m => String -> ConduitT [Word8] Void m ()
-virtualOutputConn name = bracketP (virtualOutputAcquire name) virtualOutputRelease outputConduit
+virtualOutputConn :: (MonadResource m, MonadUnliftIO m) => String -> ConduitT [Word8] Void m (ConnResult ())
+virtualOutputConn name = tryC (bracketP (virtualOutputAcquire name) virtualOutputRelease outputConduit)

@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 9a6c0c6d47a4a8194549fc9d3e06fc16b91ac0c0f79854faaaf54ec009db474a
+-- hash: 9ce6cb8a113c5df813e3f85ef4d1b75e1218ec889c07a85ac777ee6fb35eb55f
 
 name:           midriff
 version:        0.1.0
@@ -27,9 +27,11 @@ source-repository head
 library
   exposed-modules:
       Midriff.Conn
+      Midriff.Delay
       Midriff.DQueue
       Midriff.Msg
       Midriff.TEvent
+      Midriff.Time
       Midriff.Unlifted
   other-modules:
       Paths_midriff
@@ -44,6 +46,7 @@ library
     , containers >=0.6.2.1 && <1
     , resourcet >=1.2.4.2 && <2
     , stm >=2.5.0.0 && <3
+    , unliftio-core >=0.1.2.0 && <1
   default-language: Haskell2010
 
 executable midriff-exe
@@ -62,6 +65,7 @@ executable midriff-exe
     , midriff
     , resourcet >=1.2.4.2 && <2
     , stm >=2.5.0.0 && <3
+    , unliftio-core >=0.1.2.0 && <1
   default-language: Haskell2010
 
 test-suite midriff-test
@@ -84,4 +88,5 @@ test-suite midriff-test
     , stm >=2.5.0.0 && <3
     , tasty
     , tasty-hunit
+    , unliftio-core >=0.1.2.0 && <1
   default-language: Haskell2010

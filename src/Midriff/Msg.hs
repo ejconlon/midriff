@@ -1,10 +1,5 @@
 module Midriff.Msg
-  ( TimeDelta
-  , timeDeltaFromFracSecs
-  , timeDeltaFromNanos
-  , timeDeltaToFracSecs
-  , timeDeltaToNanos
-  , ChanVoiceMsg (..)
+  ( ChanVoiceMsg (..)
   , MidiMsg (..)
   , MidiEvent (..)
   , decodeMsg
@@ -12,21 +7,7 @@ module Midriff.Msg
 
 import Data.Bits (shiftL, shiftR, (.&.))
 import Data.Word (Word8)
-
--- Time delta in nanoseconds since last event
-newtype TimeDelta = TimeDelta { unTimeDelta :: Integer } deriving (Eq, Show, Ord, Num)
-
-timeDeltaFromFracSecs :: RealFrac a => a -> TimeDelta
-timeDeltaFromFracSecs d = TimeDelta (round (1000000000 * toRational d))
-
-timeDeltaFromNanos :: Integral a => a -> TimeDelta
-timeDeltaFromNanos n = TimeDelta (fromIntegral n)
-
-timeDeltaToFracSecs :: RealFrac a => TimeDelta -> a
-timeDeltaToFracSecs (TimeDelta n) = fromIntegral n / 1000000000
-
-timeDeltaToNanos :: TimeDelta -> Integer
-timeDeltaToNanos = unTimeDelta
+import Midriff.Time (TimeDelta, timeDeltaFromFracSecs)
 
 data ChanVoiceMsg =
     ChanVoiceNoteOn !Int !Int
