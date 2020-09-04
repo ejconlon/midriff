@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: c40b68da28bc6d60bc6cdc5ce626f5cc25d3779523aebdda10eef07ccc8448dd
+-- hash: 3f6022e52277e6a6722fe48979d7c100f090b2ce3075b08e9ca1f24f43fe1b67
 
 name:           midriff
 version:        0.1.0
@@ -45,6 +45,7 @@ library
     , base >=4.12 && <5
     , conduit >=1.3.2 && <2
     , containers >=0.6.2.1 && <1
+    , little-rio >=0.2.0 && <1
     , resourcet >=1.2.4.2 && <2
     , stm >=2.5.0.0 && <3
     , unliftio >=0.2.13 && <1
@@ -64,6 +65,7 @@ executable midriff-exe
     , base >=4.12 && <5
     , conduit >=1.3.2 && <2
     , containers >=0.6.2.1 && <1
+    , little-rio >=0.2.0 && <1
     , midriff
     , resourcet >=1.2.4.2 && <2
     , stm >=2.5.0.0 && <3
@@ -86,6 +88,7 @@ test-suite midriff-test
     , base >=4.12 && <5
     , conduit >=1.3.2 && <2
     , containers >=0.6.2.1 && <1
+    , little-rio >=0.2.0 && <1
     , midriff
     , resourcet >=1.2.4.2 && <2
     , stm >=2.5.0.0 && <3
