@@ -1,4 +1,4 @@
-module Midriff.Delay where
+module Midriff.Process where
 
 import Control.Monad.IO.Class (MonadIO (..))
 import Data.Conduit (ConduitT, await, yield)
@@ -18,3 +18,5 @@ delay f = go where
         m' <- liftIO (awaitDelta m td)
         yield o
         loop m'
+
+-- msgDelay :: MonadIO m => ConduitT MidiEvent MidiMsg
