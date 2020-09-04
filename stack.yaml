@@ -5,4 +5,4 @@ packages:
 
 extra-deps:
 - git: https://github.com/riottracker/RtMidi.git
-  commit: e1426922ba6d8e95174d8adcccbfb55fbe4f941f
+  commit: 1a8f7c42425b9bcc67c68e4ed9ca92af1d180be3

@@ -1,3 +1,4 @@
+-- | A 'DQueue' is basically a ring buffer in STM, but it allows callers to be aware of overwrites.
 module Midriff.DQueue
   ( DQueue
   , newDQueue
@@ -14,6 +15,7 @@ module Midriff.DQueue
 import Control.Concurrent.STM (STM, retry)
 import Control.Concurrent.STM.TVar (TVar)
 import qualified Control.Concurrent.STM.TVar as TVar
+import Data.Foldable (toList)
 import Data.Sequence (Seq (..))
 import qualified Data.Sequence as Seq
 
@@ -25,6 +27,7 @@ data DQueueState a = DQueueState
 emptyDQueueState :: DQueueState a
 emptyDQueueState = DQueueState 0 Seq.empty
 
+-- TODO(ejconlon) Use STM TArray instead of a Seq?
 data DQueue a = DQueue
   { dqCapacity :: !Int
   , dqState :: !(TVar (DQueueState a))
@@ -50,8 +53,8 @@ isEmptyDQueue (DQueue _ mst) = fmap (\(DQueueState _ body) -> Seq.null body) (TV
 isFullDQueue :: DQueue a -> STM Bool
 isFullDQueue (DQueue cap mst) = fmap (\(DQueueState _ body) -> Seq.length body == cap) (TVar.readTVar mst)
 
-flushDQueue :: DQueue a -> STM (Int, Seq a)
-flushDQueue (DQueue _ mst) = fmap (\(DQueueState dropped body) -> (dropped, body)) (TVar.swapTVar mst emptyDQueueState)
+flushDQueue :: DQueue a -> STM (Int, [a])
+flushDQueue (DQueue _ mst) = fmap (\(DQueueState dropped body) -> (dropped, toList body)) (TVar.swapTVar mst emptyDQueueState)
 
 tryReadDQueue :: DQueue a -> STM (Maybe (Int, a))
 tryReadDQueue (DQueue _ mst) = TVar.stateTVar mst $ \st@(DQueueState dropped body) ->

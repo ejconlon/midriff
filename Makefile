@@ -1,5 +1,5 @@
 include Makefile.base
 
-.PHONY: whatever
-whatever:
-	echo "whatever"
+.PHONY: exec
+exec: build
+	stack exec -- midriff-exe

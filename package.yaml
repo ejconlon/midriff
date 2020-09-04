@@ -21,6 +21,7 @@ dependencies:
 - RtMidi >= 0.2.0.0 && < 1
 - stm >= 2.5.0.0 && < 3
 - unliftio-core >= 0.1.2.0 && < 1
+- unliftio >= 0.2.13 && < 1
 # - list-t >= 1.0.4 && < 2
 # - little-rio >= 0.1.1 && < 1
 # - persist >= 0.1.1.5 && < 1
