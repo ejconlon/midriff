@@ -1,6 +1,7 @@
 -- | Many of the codec details are lifted from hmidi (see README for license and attribution).
 module Midriff.Msg
   ( ChanVoiceMsg (..)
+  , BasicMidiMsg (..)
   , MidiMsg (..)
   , MidiEvent (..)
   , MidiParsed (..)

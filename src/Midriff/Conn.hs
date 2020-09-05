@@ -77,7 +77,7 @@ releaseInput (InputState dev cq) = do
 manageInput :: InputConfig -> InputDevice -> Manager InputState
 manageInput icfg dev = mkManager (acquireInput icfg dev) releaseInput
 
-inputConn :: MonadResource m => InputConfig -> InputDevice -> ConduitT Void (Int, (Double, [Word8])) m ()
+inputConn :: MonadResource m => InputConfig -> InputDevice -> ConduitT () (Int, (Double, [Word8])) m ()
 inputConn icfg dev = managedConduit (manageInput icfg dev) (\(InputState _ cq) -> sourceCQueue cq)
 
 newtype OutputState = OutputState

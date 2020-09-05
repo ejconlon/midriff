@@ -14,7 +14,6 @@ import Control.Applicative (liftA2)
 import Control.Concurrent.STM (STM, atomically)
 import Control.Monad.IO.Class (MonadIO (..))
 import Data.Conduit (ConduitT, await, yield)
-import Data.Void (Void)
 import Midriff.DQueue (DQueue, newDQueue, readDQueue, tryReadDQueue, writeDQueue)
 import Midriff.TEvent (TEvent, isSetTEvent, newTEvent, setTEvent)
 
@@ -54,7 +53,7 @@ writeCQueue val (CQueue q e) = do
     then pure ClosedResult
     else fmap (\b -> if b then DroppedResult else OkResult) (writeDQueue val q)
 
-sourceCQueue :: MonadIO m => CQueue a -> ConduitT Void (Int, a) m ()
+sourceCQueue :: MonadIO m => CQueue a -> ConduitT () (Int, a) m ()
 sourceCQueue cq = loop where
   loop = do
     mval <- liftIO (atomically (readCQueue cq))
