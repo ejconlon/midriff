@@ -2,17 +2,17 @@ module Main (main) where
 
 import Control.Monad.IO.Class (MonadIO (..))
 import Control.Monad.Trans.Resource (MonadResource)
-import Data.Conduit (ConduitT, (.|), runConduit)
+import Data.Conduit (ConduitT, runConduit, (.|))
 import Data.Conduit.List (sourceList)
 import Data.Word (Word8)
 import LittleRIO (runRIO, withResourceMap)
 import Midriff.Config (Config (..), PortId (..))
 import Midriff.Conn (manageOutputDevice, outputConn)
+import Midriff.Msg
 import Midriff.Process (encodeParsedC, msgDelayC)
 import Midriff.Resource (managedAllocate)
 import Midriff.Time (timeDeltaFromFracSecs)
 import Sound.RtMidi (currentApi, listPorts)
-import Midriff.Msg
 
 noteOn :: Int -> Int -> MidiParsed
 noteOn k v = MidiParsed (Right (BasicMsg (MidiChanVoice 1 (ChanVoiceNoteOn k v))))
