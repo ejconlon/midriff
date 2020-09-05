@@ -39,6 +39,7 @@ newDQueue cap =
     then error "DQueue must have non-zero capacity"
     else fmap (DQueue cap) (TVar.newTVar emptyDQueueState)
 
+-- Returns True if dropped events
 writeDQueue :: a -> DQueue a -> STM Bool
 writeDQueue val (DQueue cap mst) = TVar.stateTVar mst $ \(DQueueState dropped body) ->
   let (full, newDropped, newBody) =

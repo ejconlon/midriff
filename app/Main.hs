@@ -1,14 +1,16 @@
 module Main (main) where
 
 import Control.Monad.IO.Class (liftIO)
-import LittleRIO (HasResourceMap, RIO, runRIO, withResourceMap)
-import Midriff.Conn (allocateOutputDevice)
+import Control.Monad.Trans.Resource (MonadResource)
+import LittleRIO (runRIO, withResourceMap)
+import Midriff.Conn (manageOutputDevice)
+import Midriff.Resource (managedAllocate)
 import Sound.RtMidi (listPorts)
 
-program :: HasResourceMap env => RIO env ()
+program :: MonadResource m => m ()
 program = do
-  (_, d) <- allocateOutputDevice Nothing
-  ports <- liftIO (listPorts d)
+  (_, outDev) <- managedAllocate (manageOutputDevice Nothing)
+  ports <- liftIO (listPorts outDev)
   liftIO (print ports)
 
 main :: IO ()

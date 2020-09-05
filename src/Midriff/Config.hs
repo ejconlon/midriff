@@ -44,5 +44,6 @@ ignoreNone = Ignores False False False
 
 data InputConfig = InputConfig
   { icConfig :: !Config
+  , icCapacity :: !Int
   , icIgnore :: !(Maybe Ignores)
   }

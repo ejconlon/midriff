@@ -1,127 +1,110 @@
 module Midriff.Conn
-  ( ConnResult
-  , withInputDevice
-  , withOutputDevice
-  , allocateInputDevice
-  , allocateOutputDevice
+  ( manageInputDevice
+  , manageOutputDevice
   , inputConn
   , outputConn
   ) where
 
 import Control.Concurrent.STM (atomically)
-import Control.Monad (forever, void)
+import Control.Monad (void)
 import Control.Monad.IO.Class (MonadIO (..))
-import Control.Monad.IO.Unlift (MonadUnliftIO)
-import Control.Monad.Trans.Resource (MonadResource, ReleaseKey, allocate)
-import Data.Conduit (ConduitT, await, bracketP)
+import Control.Monad.Trans.Resource (MonadResource)
+import Data.Conduit (ConduitT, await)
 import Data.Void (Void)
 import Data.Word (Word8)
 import Midriff.Config (Config (..), DeviceConfig (..), Ignores (..), InputConfig (..), PortId (..))
-import Midriff.TEvent (TEvent, newTEvent, setTEvent)
-import Midriff.Unlifted (DQueue, eventWriteDQueueUnlifted, newDQueueUnlifted, sourceDQueue)
-import Sound.RtMidi (Error, InputDevice, OutputDevice, cancelCallback, closeDevice, closePort, createInput,
-                     createOutput, defaultInput, defaultOutput, ignoreTypes, openPort, openVirtualPort, sendMessage,
-                     setCallback)
-import UnliftIO.Exception (bracket)
+import Midriff.CQueue (CQueue, closeCQueue, newCQueue, sourceCQueue, writeCQueue)
+import Midriff.Resource (Manager, managedConduit, mkManager)
+import Sound.RtMidi (InputDevice, OutputDevice, cancelCallback, closeDevice, closePort, createInput, createOutput,
+                     defaultInput, defaultOutput, ignoreTypes, openPort, openVirtualPort, sendMessage, setCallback)
 
 type InputCallback = Double -> [Word8] -> IO ()
 
-type InputQueue = DQueue (Double, [Word8])
+type InputQueue = CQueue (Double, [Word8])
+
+inputCb :: InputQueue -> InputCallback
+inputCb cq fracSecs bytes = atomically (void (writeCQueue (fracSecs, bytes) cq))
 
 data InputState = InputState
   { istDevice :: !InputDevice
-  , istCloseEvent :: !TEvent
+  , istQueue :: !InputQueue
   }
 
-inputDeviceAcquire :: Maybe DeviceConfig -> IO InputDevice
-inputDeviceAcquire mpc = do
+acquireInputDevice :: Maybe DeviceConfig -> IO InputDevice
+acquireInputDevice mpc = do
   case mpc of
     Nothing -> defaultInput
     -- Empty queue is fine for this, since we set a callback
     Just (DeviceConfig api client) -> createInput api client 0
 
-inputDeviceRelease :: InputDevice -> IO ()
-inputDeviceRelease = closeDevice
+manageInputDevice :: Maybe DeviceConfig -> Manager InputDevice
+manageInputDevice dcfg = mkManager (acquireInputDevice dcfg) closeDevice
 
-withInputDevice :: MonadUnliftIO m => Maybe DeviceConfig -> (InputDevice -> m a) -> m a
-withInputDevice dcfg = bracket (liftIO (inputDeviceAcquire dcfg)) (liftIO . inputDeviceRelease)
-
-allocateInputDevice :: MonadResource m => Maybe DeviceConfig -> m (ReleaseKey, InputDevice)
-allocateInputDevice dcfg = allocate (liftIO (inputDeviceAcquire dcfg)) (liftIO . inputDeviceRelease)
-
-outputDeviceAcquire :: Maybe DeviceConfig -> IO OutputDevice
-outputDeviceAcquire mpc = do
+acquireOutputDevice :: Maybe DeviceConfig -> IO OutputDevice
+acquireOutputDevice mpc = do
   case mpc of
     Nothing -> defaultOutput
     Just (DeviceConfig api client) -> createOutput api client
 
-outputDeviceRelease :: OutputDevice -> IO ()
-outputDeviceRelease = closeDevice
+manageOutputDevice :: Maybe DeviceConfig -> Manager OutputDevice
+manageOutputDevice dcfg = mkManager (acquireOutputDevice dcfg) closeDevice
 
-withOutputDevice :: MonadUnliftIO m => Maybe DeviceConfig -> (OutputDevice -> m a) -> m a
-withOutputDevice dcfg = bracket (liftIO (outputDeviceAcquire dcfg)) (liftIO . outputDeviceRelease)
-
-allocateOutputDevice :: MonadResource m => Maybe DeviceConfig -> m (ReleaseKey, OutputDevice)
-allocateOutputDevice dcfg = allocate (liftIO (outputDeviceAcquire dcfg)) (liftIO . outputDeviceRelease)
-
-inputAcquire :: InputConfig -> (TEvent -> InputCallback) -> InputDevice -> IO InputState
-inputAcquire (InputConfig (Config name pid) migs) cb d = do
+acquireInput :: InputConfig -> InputDevice -> IO InputState
+acquireInput (InputConfig (Config name pid) cap migs) dev = do
   -- Create a close event so we can switch to non-blocking reads on close
-  c <- atomically newTEvent
+  cq <- atomically (newCQueue cap)
   -- Set our ignored message types
   case migs of
     Nothing -> pure ()
-    Just (Ignores x y z) -> ignoreTypes d x y z
+    Just (Ignores x y z) -> ignoreTypes dev x y z
   -- Set our callback to enqueue to our own ring buffer
-  setCallback d (cb c)
+  setCallback dev (inputCb cq)
   -- Open the port for input
   case pid of
-    PortIdReal p -> openPort d p name
-    PortIdVirtual -> openVirtualPort d name
-  pure (InputState d c)
+    PortIdReal pnum -> openPort dev pnum name
+    PortIdVirtual -> openVirtualPort dev name
+  pure (InputState dev cq)
 
-inputRelease :: InputState -> IO ()
-inputRelease (InputState d c) = do
+releaseInput :: InputState -> IO ()
+releaseInput (InputState dev cq) = do
   -- Switch to non-blocking reads first (in case the rest throws an exception)
-  atomically (setTEvent c)
+  atomically (closeCQueue cq)
   -- Close the port for input
-  closePort d
+  closePort dev
   -- Remove our callback
-  cancelCallback d
+  cancelCallback dev
 
-inputCb :: InputQueue -> TEvent -> InputCallback
-inputCb q e d w = void (eventWriteDQueueUnlifted q e (d, w))
+manageInput :: InputConfig -> InputDevice -> Manager InputState
+manageInput icfg dev = mkManager (acquireInput icfg dev) releaseInput
 
-type ConnResult a = Either Error a
-
-inputConn :: MonadResource m => InputConfig -> Int -> InputDevice -> ConduitT Void (Int, (Double, [Word8])) m ()
-inputConn icfg cap d = do
-  q <- newDQueueUnlifted cap
-  bracketP (inputAcquire icfg (inputCb q) d) inputRelease (\(InputState _ c) -> sourceDQueue q c)
+inputConn :: MonadResource m => InputConfig -> InputDevice -> ConduitT Void (Int, (Double, [Word8])) m ()
+inputConn icfg dev = managedConduit (manageInput icfg dev) (\(InputState _ cq) -> sourceCQueue cq)
 
 newtype OutputState = OutputState
   { ostDevice :: OutputDevice
   }
 
-outputAcquire :: Config -> OutputDevice -> IO OutputState
-outputAcquire (Config name pid) d = do
+acquireOutput :: Config -> OutputDevice -> IO OutputState
+acquireOutput (Config name pid) dev = do
   -- Open the port for output
   case pid of
-    PortIdReal p -> openPort d p name
-    PortIdVirtual -> openVirtualPort d name
-  pure (OutputState d)
+    PortIdReal pnum -> openPort dev pnum name
+    PortIdVirtual -> openVirtualPort dev name
+  pure (OutputState dev)
 
-outputRelease :: OutputState -> IO ()
-outputRelease (OutputState d) = do
-  closePort d
-  closeDevice d
+releaseOutput :: OutputState -> IO ()
+releaseOutput (OutputState dev) = closePort dev
+
+manageOutput :: Config -> OutputDevice -> Manager OutputState
+manageOutput cfg dev = mkManager (acquireOutput cfg dev) releaseOutput
 
 outputConduit :: MonadIO m => OutputState -> ConduitT [Word8] Void m ()
-outputConduit (OutputState d) = forever $ do
-  mpair <- await
-  case mpair of
-    Nothing -> pure ()
-    Just m -> liftIO (sendMessage d m)
+outputConduit (OutputState dev) = loop where
+  loop = do
+    mbytes <- await
+    case mbytes of
+      Nothing -> pure ()
+      Just bytes -> liftIO (sendMessage dev bytes) *> loop
 
 outputConn :: MonadResource m => Config -> OutputDevice -> ConduitT [Word8] Void m ()
-outputConn cfg d = bracketP (outputAcquire cfg d) outputRelease outputConduit
+outputConn cfg dev = managedConduit (manageOutput cfg dev) outputConduit
