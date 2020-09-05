@@ -7,7 +7,7 @@ import Data.Conduit.List (sourceList)
 import Data.Word (Word8)
 import LittleRIO (runRIO, withResourceMap)
 import Midriff.Config (Config (..), PortId (..))
-import Midriff.Conn (manageOutputDevice, outputConn)
+import Midriff.Connect (manageOutputDevice, manageOutputC)
 import Midriff.Msg
 import Midriff.Process (encodeParsedC, msgDelayC)
 import Midriff.Resource (managedAllocate)
@@ -36,8 +36,8 @@ program = do
   liftIO (print api)
   ports <- liftIO (listPorts outDev)
   liftIO (print ports)
-  let conn = outputConn (Config "midriff-exe" PortIdVirtual) outDev
-  runConduit (songC .| conn)
+  let outputC = manageOutputC (Config "midriff-exe" PortIdVirtual) outDev
+  runConduit (songC .| outputC)
 
 main :: IO ()
 main = withResourceMap (flip runRIO program)

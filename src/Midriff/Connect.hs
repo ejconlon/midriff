@@ -1,8 +1,8 @@
-module Midriff.Conn
+module Midriff.Connect
   ( manageInputDevice
   , manageOutputDevice
-  , inputConn
-  , outputConn
+  , manageInputC
+  , manageOutputC
   ) where
 
 import Control.Concurrent.STM (atomically)
@@ -77,8 +77,11 @@ releaseInput (InputState dev cq) = do
 manageInput :: InputConfig -> InputDevice -> Manager InputState
 manageInput icfg dev = mkManager (acquireInput icfg dev) releaseInput
 
-inputConn :: MonadResource m => InputConfig -> InputDevice -> ConduitT () (Int, (Double, [Word8])) m ()
-inputConn icfg dev = managedConduit (manageInput icfg dev) (\(InputState _ cq) -> sourceCQueue cq)
+innerInputC :: MonadIO m => InputState -> ConduitT () (Int, (Double, [Word8])) m ()
+innerInputC (InputState _ cq) = sourceCQueue cq
+
+manageInputC :: MonadResource m => InputConfig -> InputDevice -> ConduitT () (Int, (Double, [Word8])) m ()
+manageInputC icfg dev = managedConduit (manageInput icfg dev) innerInputC
 
 newtype OutputState = OutputState
   { ostDevice :: OutputDevice
@@ -98,13 +101,13 @@ releaseOutput (OutputState dev) = closePort dev
 manageOutput :: Config -> OutputDevice -> Manager OutputState
 manageOutput cfg dev = mkManager (acquireOutput cfg dev) releaseOutput
 
-outputConduit :: MonadIO m => OutputState -> ConduitT [Word8] Void m ()
-outputConduit (OutputState dev) = loop where
+innerOutputC :: MonadIO m => OutputState -> ConduitT [Word8] Void m ()
+innerOutputC (OutputState dev) = loop where
   loop = do
     mbytes <- await
     case mbytes of
       Nothing -> pure ()
       Just bytes -> liftIO (sendMessage dev bytes) *> loop
 
-outputConn :: MonadResource m => Config -> OutputDevice -> ConduitT [Word8] Void m ()
-outputConn cfg dev = managedConduit (manageOutput cfg dev) outputConduit
+manageOutputC :: MonadResource m => Config -> OutputDevice -> ConduitT [Word8] Void m ()
+manageOutputC cfg dev = managedConduit (manageOutput cfg dev) innerOutputC
