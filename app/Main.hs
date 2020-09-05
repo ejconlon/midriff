@@ -5,11 +5,13 @@ import Control.Monad.Trans.Resource (MonadResource)
 import LittleRIO (runRIO, withResourceMap)
 import Midriff.Conn (manageOutputDevice)
 import Midriff.Resource (managedAllocate)
-import Sound.RtMidi (listPorts)
+import Sound.RtMidi (currentApi, listPorts)
 
 program :: MonadResource m => m ()
 program = do
   (_, outDev) <- managedAllocate (manageOutputDevice Nothing)
+  api <- liftIO (currentApi outDev)
+  liftIO (print api)
   ports <- liftIO (listPorts outDev)
   liftIO (print ports)
 
