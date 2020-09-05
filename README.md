@@ -1,5 +1,7 @@
 # midriff
 
+[![CircleCI](https://circleci.com/gh/ejconlon/midriff/tree/master.svg?style=svg)](https://circleci.com/gh/ejconlon/midriff/tree/master)
+
 A high-level MIDI interface based on [RtMidi](https://hackage.haskell.org/package/RtMidi).
 
 ## License
