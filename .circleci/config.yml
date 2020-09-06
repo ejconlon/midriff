@@ -13,7 +13,7 @@ commands:
     steps:
     - run:
         name: Install apt
-        command: if [ -f docker/packages.txt ]; then apt-get update && apt-get install -y $(cat docker/packages.txt) fi
+        command: if [[ -f docker/packages.txt ]]; then apt-get update && apt-get install -y $(cat docker/packages.txt) fi
 
 jobs:
   stack_build:
