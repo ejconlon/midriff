@@ -107,7 +107,7 @@ innerOutputC (OutputState dev) = loop where
     mbytes <- await
     case mbytes of
       Nothing -> pure ()
-      Just bytes -> liftIO (sendMessage dev bytes) *> loop
+      Just bytes -> sendMessage dev bytes *> loop
 
 manageOutputC :: MonadResource m => Config -> OutputDevice -> ConduitT [Word8] Void m ()
 manageOutputC cfg dev = managedConduit (manageOutput cfg dev) innerOutputC

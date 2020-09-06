@@ -16,12 +16,12 @@ packages:
     version: 0.2.0.0
     git: https://github.com/riottracker/RtMidi.git
     pantry-tree:
-      size: 1280
-      sha256: bcff7d73dc2ca03bd452db2ea16ac38785b0eeeddd3b4c4a3b11e3f7ba706530
-    commit: 1a8f7c42425b9bcc67c68e4ed9ca92af1d180be3
+      size: 1333
+      sha256: def5f813614fa724383d0c660433dfa0a4a181ee54a429a3c5aa99112934c639
+    commit: 87c8449e1c0fdd5f68688fa1966165b970ee08c4
   original:
     git: https://github.com/riottracker/RtMidi.git
-    commit: 1a8f7c42425b9bcc67c68e4ed9ca92af1d180be3
+    commit: 87c8449e1c0fdd5f68688fa1966165b970ee08c4
 snapshots:
 - completed:
     size: 532377

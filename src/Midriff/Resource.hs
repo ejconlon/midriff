@@ -31,9 +31,7 @@ managedConduit (Manager acq rel) = bracketP acq rel
 managedAllocate :: MonadResource m => Manager a -> m (ReleaseKey, a)
 managedAllocate (Manager acq rel) = allocate acq rel
 
-managedAsync :: (MonadResource m, MonadUnliftIO m) => m a -> m (ReleaseKey, (Async a))
+managedAsync :: (MonadResource m, MonadUnliftIO m) => m a -> m (ReleaseKey, Async a)
 managedAsync m = do
   run <- askRunInIO
   allocate (async (run m)) cancel
-
-
