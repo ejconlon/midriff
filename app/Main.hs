@@ -1,6 +1,8 @@
 module Main (main) where
 
+import Control.Concurrent.Async (wait)
 import Control.Monad.IO.Class (MonadIO (..))
+import Control.Monad.IO.Unlift (MonadUnliftIO)
 import Control.Monad.Trans.Resource (MonadResource)
 import Data.Conduit (ConduitT, runConduit, (.|))
 import Data.Conduit.List (sourceList)
@@ -10,7 +12,7 @@ import Midriff.Config (Config (..), PortId (..))
 import Midriff.Connect (manageOutputDevice, manageOutputC)
 import Midriff.Msg
 import Midriff.Process (encodeParsedC, msgDelayC)
-import Midriff.Resource (managedAllocate)
+import Midriff.Resource (managedAllocate, managedAsync)
 import Midriff.Time (timeDeltaFromFracSecs)
 import Sound.RtMidi (currentApi, listPorts)
 
@@ -29,7 +31,7 @@ songEvents =
 songC :: MonadIO m => ConduitT () [Word8] m ()
 songC = sourceList songEvents .| msgDelayC .| encodeParsedC
 
-program :: MonadResource m => m ()
+program :: (MonadResource m, MonadUnliftIO m) => m ()
 program = do
   (_, outDev) <- managedAllocate (manageOutputDevice Nothing)
   api <- liftIO (currentApi outDev)
@@ -37,7 +39,8 @@ program = do
   ports <- liftIO (listPorts outDev)
   liftIO (print ports)
   let outputC = manageOutputC (Config "midriff-exe" PortIdVirtual) outDev
-  runConduit (songC .| outputC)
+  (_, res) <- managedAsync (runConduit (songC .| outputC))
+  liftIO (wait res)
 
 main :: IO ()
 main = withResourceMap (flip runRIO program)

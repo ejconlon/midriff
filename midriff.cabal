@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: b053e93d3463e5cfa5b0d1e4675e9962d94f0f1386b13274bcdaecd02f9fcfa5
+-- hash: 0c5e8e5f3b3b946442839cb9f1af443da7a067986921bef2dcec682b63884ae0
 
 name:           midriff
 version:        0.1.0
@@ -43,6 +43,7 @@ library
   ghc-options: -Wall -Wcompat -Widentities -Wincomplete-record-updates -Wincomplete-uni-patterns -Wpartial-fields -Wredundant-constraints -fno-warn-unused-top-binds
   build-depends:
       RtMidi >=0.2.0.0 && <1
+    , async >=2.2.2 && <3
     , base >=4.12 && <5
     , conduit >=1.3.2 && <2
     , containers >=0.6.2.1 && <1
@@ -63,6 +64,7 @@ executable midriff-exe
   ghc-options: -Wall -Wcompat -Widentities -Wincomplete-record-updates -Wincomplete-uni-patterns -Wpartial-fields -Wredundant-constraints -fno-warn-unused-top-binds -threaded -rtsopts -with-rtsopts=-N
   build-depends:
       RtMidi >=0.2.0.0 && <1
+    , async >=2.2.2 && <3
     , base >=4.12 && <5
     , conduit >=1.3.2 && <2
     , containers >=0.6.2.1 && <1
@@ -86,6 +88,7 @@ test-suite midriff-test
   ghc-options: -Wall -Wcompat -Widentities -Wincomplete-record-updates -Wincomplete-uni-patterns -Wpartial-fields -Wredundant-constraints -fno-warn-unused-top-binds -threaded -rtsopts -with-rtsopts=-N
   build-depends:
       RtMidi >=0.2.0.0 && <1
+    , async >=2.2.2 && <3
     , base >=4.12 && <5
     , conduit >=1.3.2 && <2
     , containers >=0.6.2.1 && <1

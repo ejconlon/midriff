@@ -4,10 +4,12 @@ module Midriff.Resource
   , managedBracket
   , managedConduit
   , managedAllocate
+  , managedAsync
   ) where
 
-import Control.Monad.IO.Class (MonadIO (..))
-import Control.Monad.IO.Unlift (MonadUnliftIO)
+import Control.Concurrent.Async (Async, async, cancel)
+import Control.Monad.IO.Class (liftIO)
+import Control.Monad.IO.Unlift (MonadUnliftIO, askRunInIO)
 import Control.Monad.Trans.Resource (MonadResource, ReleaseKey, allocate)
 import Data.Conduit (ConduitT, bracketP)
 import UnliftIO.Exception (bracket)
@@ -28,3 +30,10 @@ managedConduit (Manager acq rel) = bracketP acq rel
 
 managedAllocate :: MonadResource m => Manager a -> m (ReleaseKey, a)
 managedAllocate (Manager acq rel) = allocate acq rel
+
+managedAsync :: (MonadResource m, MonadUnliftIO m) => m a -> m (ReleaseKey, (Async a))
+managedAsync m = do
+  run <- askRunInIO
+  allocate (async (run m)) cancel
+
+
