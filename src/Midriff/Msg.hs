@@ -1,6 +1,7 @@
 -- | Many of the codec details are lifted from hmidi (see README for license and attribution).
 module Midriff.Msg
   ( ChanVoiceMsg (..)
+  , ChanVoiceMsgData (..)
   , BasicMidiMsg (..)
   , MidiMsg (..)
   , MidiEvent (..)
@@ -14,7 +15,7 @@ import Data.Bits (shiftL, shiftR, (.&.), (.|.))
 import Data.Word (Word8)
 import Midriff.Time (TimeDelta, timeDeltaFromFracSecs)
 
-data ChanVoiceMsg =
+data ChanVoiceMsgData =
     ChanVoiceNoteOn !Int !Int
   | ChanVoicePolyAftertouch !Int !Int
   | ChanVoiceCC !Int !Int
@@ -23,10 +24,12 @@ data ChanVoiceMsg =
   | ChanVoicePitchWheel !Int
   deriving (Eq, Show)
 
+data ChanVoiceMsg = ChanVoiceMsg !Int !ChanVoiceMsgData deriving (Eq, Show)
+
 -- TODO(ejconlon) Implement ChannelMode message
 -- https://www.midi.org/specifications/item/table-1-summary-of-midi-message
 data BasicMidiMsg =
-    MidiChanVoice !Int !ChanVoiceMsg
+    MidiChanVoice !ChanVoiceMsg
   | MidiSongPosition !Int
   | MidiSongSelect !Int
   | MidiTuneRequest
@@ -51,10 +54,10 @@ decodeShortMsgBasic :: ShortMsg -> Maybe BasicMidiMsg
 decodeShortMsgBasic (ShortMsg chn msg bs) =
   let bs' = convertShortBytes bs
   in if msg < 15
-    then fmap (MidiChanVoice (fromIntegral chn)) (decodeChanVoice msg bs')
+    then fmap (MidiChanVoice . ChanVoiceMsg (fromIntegral chn)) (decodeChanVoice msg bs')
     else decodeOther chn bs'
 
-decodeChanVoice :: Word8 -> ShortBytes Int -> Maybe ChanVoiceMsg
+decodeChanVoice :: Word8 -> ShortBytes Int -> Maybe ChanVoiceMsgData
 decodeChanVoice msg bs = case (msg, bs) of
    (8,  ShortBytes2 k _) -> Just (ChanVoiceNoteOn k 0)
    (9,  ShortBytes2 k v) -> Just (ChanVoiceNoteOn k v)
@@ -80,7 +83,7 @@ decodeOther lo bs = case (lo, bs) of
   _ -> Nothing
 
 encodeShortMsgBasic :: BasicMidiMsg -> ShortMsg
-encodeShortMsgBasic (MidiChanVoice chn msg') =
+encodeShortMsgBasic (MidiChanVoice (ChanVoiceMsg chn msg')) =
   case msg' of
     ChanVoiceNoteOn  k v         -> mkShortMsg chn  9 (ShortBytes2 k v)
     ChanVoicePolyAftertouch k v  -> mkShortMsg chn 10 (ShortBytes2 k v)

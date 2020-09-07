@@ -1,6 +1,13 @@
 module Midriff.Connect
-  ( manageInputDevice
+  ( InputState (..)
+  , InputQueue
+  , OutputState (..)
+  , manageInputDevice
   , manageOutputDevice
+  , manageInput
+  , manageOutput
+  , inputC
+  , outputC
   , manageInputC
   , manageOutputC
   ) where
@@ -12,7 +19,7 @@ import Control.Monad.Trans.Resource (MonadResource)
 import Data.Conduit (ConduitT, await)
 import Data.Void (Void)
 import Data.Word (Word8)
-import Midriff.Config (Config (..), DeviceConfig (..), Ignores (..), InputConfig (..), PortId (..))
+import Midriff.Config (PortConfig (..), DeviceConfig (..), Ignores (..), InputConfig (..), PortId (..))
 import Midriff.CQueue (CQueue, closeCQueue, newCQueue, sourceCQueue, writeCQueue)
 import Midriff.Resource (Manager, managedConduit, mkManager)
 import Sound.RtMidi (InputDevice, OutputDevice, cancelCallback, closeDevice, closePort, createInput, createOutput,
@@ -50,7 +57,7 @@ manageOutputDevice :: Maybe DeviceConfig -> Manager OutputDevice
 manageOutputDevice dcfg = mkManager (acquireOutputDevice dcfg) closeDevice
 
 acquireInput :: InputConfig -> InputDevice -> IO InputState
-acquireInput (InputConfig (Config name pid) cap migs) dev = do
+acquireInput (InputConfig (PortConfig name pid) cap migs) dev = do
   -- Create a close event so we can switch to non-blocking reads on close
   cq <- atomically (newCQueue cap)
   -- Set our ignored message types
@@ -77,18 +84,18 @@ releaseInput (InputState dev cq) = do
 manageInput :: InputConfig -> InputDevice -> Manager InputState
 manageInput icfg dev = mkManager (acquireInput icfg dev) releaseInput
 
-innerInputC :: MonadIO m => InputState -> ConduitT () (Int, (Double, [Word8])) m ()
-innerInputC (InputState _ cq) = sourceCQueue cq
+inputC :: MonadIO m => InputState -> ConduitT () (Int, (Double, [Word8])) m ()
+inputC (InputState _ cq) = sourceCQueue cq
 
 manageInputC :: MonadResource m => InputConfig -> InputDevice -> ConduitT () (Int, (Double, [Word8])) m ()
-manageInputC icfg dev = managedConduit (manageInput icfg dev) innerInputC
+manageInputC icfg dev = managedConduit (manageInput icfg dev) inputC
 
 newtype OutputState = OutputState
   { ostDevice :: OutputDevice
   }
 
-acquireOutput :: Config -> OutputDevice -> IO OutputState
-acquireOutput (Config name pid) dev = do
+acquireOutput :: PortConfig -> OutputDevice -> IO OutputState
+acquireOutput (PortConfig name pid) dev = do
   -- Open the port for output
   case pid of
     PortIdReal pnum -> openPort dev pnum name
@@ -98,16 +105,16 @@ acquireOutput (Config name pid) dev = do
 releaseOutput :: OutputState -> IO ()
 releaseOutput (OutputState dev) = closePort dev
 
-manageOutput :: Config -> OutputDevice -> Manager OutputState
+manageOutput :: PortConfig -> OutputDevice -> Manager OutputState
 manageOutput cfg dev = mkManager (acquireOutput cfg dev) releaseOutput
 
-innerOutputC :: MonadIO m => OutputState -> ConduitT [Word8] Void m ()
-innerOutputC (OutputState dev) = loop where
+outputC :: MonadIO m => OutputState -> ConduitT [Word8] Void m ()
+outputC (OutputState dev) = loop where
   loop = do
     mbytes <- await
     case mbytes of
       Nothing -> pure ()
       Just bytes -> sendMessage dev bytes *> loop
 
-manageOutputC :: MonadResource m => Config -> OutputDevice -> ConduitT [Word8] Void m ()
-manageOutputC cfg dev = managedConduit (manageOutput cfg dev) innerOutputC
+manageOutputC :: MonadResource m => PortConfig -> OutputDevice -> ConduitT [Word8] Void m ()
+manageOutputC cfg dev = managedConduit (manageOutput cfg dev) outputC

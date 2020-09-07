@@ -21,12 +21,16 @@ import Control.Concurrent (threadDelay)
 import Data.Word (Word64)
 import GHC.Clock (getMonotonicTimeNSec)
 
--- Time delta in nanoseconds since last event
+-- | Non-negative time difference in nanoseconds since last event
 newtype TimeDelta = TimeDelta { unTimeDelta :: Word64 } deriving (Eq, Show, Ord, Num)
 
+-- | Return a 'TimeDelta' corresponding the the given number of fractional seconds.
+-- (For example, 1.5 represents one and a half seconds.)
 timeDeltaFromFracSecs :: RealFrac a => a -> TimeDelta
 timeDeltaFromFracSecs d = TimeDelta (round (1000000000 * toRational d))
 
+-- | Return a 'TimeDelta' corresponding the the given number of nanoseconds.
+-- (For example, 1000000000 represends one second.)
 timeDeltaFromNanos :: Integral a => a -> TimeDelta
 timeDeltaFromNanos = TimeDelta . fromIntegral
 
@@ -36,12 +40,16 @@ timeDeltaToFracSecs (TimeDelta n) = fromIntegral n / 1000000000
 timeDeltaToNanos :: TimeDelta -> Word64
 timeDeltaToNanos = unTimeDelta
 
-diffTimeDelta :: TimeDelta -> TimeDelta -> Maybe TimeDelta
+-- | Return the
+diffTimeDelta :: TimeDelta         -- ^ the "larger" delta
+              -> TimeDelta         -- ^ the "smaller" delta
+              -> Maybe TimeDelta   -- ^ difference between the two (Nothing if negative)
 diffTimeDelta (TimeDelta big) (TimeDelta small) =
   if big <= small
     then Nothing
     else Just (TimeDelta (big - small))
 
+-- | Monotonic time in nanoseconds since some unspecified epoch (see 'getMonotonicTimeNs')
 newtype MonoTime = MonoTime { unMonoTime :: Word64 } deriving (Eq, Show, Ord, Num)
 
 monoTimeFromFracSecs :: RealFrac a => a -> MonoTime
