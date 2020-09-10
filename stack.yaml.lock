@@ -12,19 +12,15 @@ packages:
   original:
     hackage: little-rio-0.2.1
 - completed:
-    name: RtMidi
-    version: 0.2.0.0
-    git: https://github.com/riottracker/RtMidi.git
+    hackage: RtMidi-0.2.0.0@sha256:bf5244976d42c748b312479c89fae9bdcebd2e700b4c49f354f288db2fa414cc,3393
     pantry-tree:
-      size: 1333
-      sha256: def5f813614fa724383d0c660433dfa0a4a181ee54a429a3c5aa99112934c639
-    commit: 87c8449e1c0fdd5f68688fa1966165b970ee08c4
+      size: 842
+      sha256: 57d81d2493d4a070a985eb069a7b65b03ae8187ce2e96e30242d7532a0c0cccf
   original:
-    git: https://github.com/riottracker/RtMidi.git
-    commit: 87c8449e1c0fdd5f68688fa1966165b970ee08c4
+    hackage: RtMidi-0.2.0.0
 snapshots:
 - completed:
-    size: 532377
-    url: https://raw.githubusercontent.com/commercialhaskell/stackage-snapshots/master/lts/16/12.yaml
-    sha256: f914cfa23fef85bdf895e300a8234d9d0edc2dbec67f4bc9c53f85867c50eab6
-  original: lts-16.12
+    size: 532381
+    url: https://raw.githubusercontent.com/commercialhaskell/stackage-snapshots/master/lts/16/13.yaml
+    sha256: 6ee17f7996e5bc75ae4406250841f1362ad4196418a4d90a0615ff4f26ac98df
+  original: lts-16.13

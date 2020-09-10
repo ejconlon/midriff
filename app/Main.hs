@@ -8,7 +8,7 @@ import Data.Conduit (ConduitT, runConduit, (.|))
 import Data.Conduit.List (sourceList)
 import Data.Word (Word8)
 import LittleRIO (runRIO, withResourceMap)
-import Midriff.Config (Config (..), PortId (..))
+import Midriff.Config (PortConfig (..), PortId (..))
 import Midriff.Connect (manageOutputC, manageOutputDevice)
 import Midriff.Msg
 import Midriff.Process (encodeParsedC, msgDelayC)
@@ -17,7 +17,7 @@ import Midriff.Time (timeDeltaFromFracSecs)
 import Sound.RtMidi (currentApi, listPorts)
 
 noteOn :: Int -> Int -> MidiParsed
-noteOn k v = MidiParsed (Right (BasicMsg (MidiChanVoice 1 (ChanVoiceNoteOn k v))))
+noteOn k v = MidiParsed (Right (BasicMsg (MidiChanVoice (ChanVoiceMsg 1 (ChanVoiceNoteOn k v)))))
 
 songEvents :: [MidiEvent]
 songEvents =
@@ -38,7 +38,7 @@ program = do
   liftIO (print api)
   ports <- listPorts outDev
   liftIO (print ports)
-  let outputC = manageOutputC (Config "midriff-exe" PortIdVirtual) outDev
+  let outputC = manageOutputC (PortConfig "midriff-exe" PortIdVirtual) outDev
   (_, res) <- managedAsync (runConduit (songC .| outputC))
   liftIO (wait res)
 
