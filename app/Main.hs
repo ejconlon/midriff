@@ -6,18 +6,19 @@ import Control.Monad.IO.Unlift (MonadUnliftIO)
 import Control.Monad.Trans.Resource (MonadResource)
 import Data.Conduit (ConduitT, runConduit, (.|))
 import Data.Conduit.List (sourceList)
+import qualified Data.Vector.Storable as VS
 import Data.Word (Word8)
 import LittleRIO (runRIO, withResourceMap)
 import Midriff.Config (PortConfig (..), PortId (..))
-import Midriff.Connect (manageOutputC, manageOutputDevice)
+import Midriff.Connect (manageOutputC, openOutputDevice)
 import Midriff.Msg
-import Midriff.Process (encodeParsedC, msgDelayC)
-import Midriff.Resource (managedAllocate, managedAsync)
+import Midriff.Process (encodeMsgC, msgDelayC)
+import Midriff.Resource (managedAsync)
 import Midriff.Time (timeDeltaFromFracSecs)
 import Sound.RtMidi (currentApi, listPorts)
 
-noteOn :: Int -> Int -> MidiParsed
-noteOn k v = MidiParsed (Right (BasicMsg (MidiChanVoice (ChanVoiceMsg 1 (ChanVoiceNoteOn k v)))))
+noteOn :: Int -> Int -> MidiMsg
+noteOn k v = ParsedMidiMsg (MidiChanVoice (ChanVoiceMsg 1 (ChanVoiceNoteOn k v)))
 
 songEvents :: [MidiEvent]
 songEvents =
@@ -25,15 +26,15 @@ songEvents =
       arp1 = take 12 $ cycle [0x51, 0x56, 0x5a]
       arp2 = take 12 $ cycle [0x50, 0x53, 0x58]
       song = cycle (arp0 ++ arp1 ++ arp2 ++ arp0)
-      td = timeDeltaFromFracSecs (1.0 :: Double)
+      td = timeDeltaFromFracSecs (0.5 :: Double)
   in [MidiEvent td (noteOn k 0x7f) | k <- take 240 song]
 
-songC :: MonadIO m => ConduitT () [Word8] m ()
-songC = sourceList songEvents .| msgDelayC .| encodeParsedC
+songC :: MonadIO m => ConduitT () (VS.Vector Word8) m ()
+songC = sourceList songEvents .| msgDelayC .| encodeMsgC
 
 program :: (MonadResource m, MonadUnliftIO m) => m ()
 program = do
-  (_, outDev) <- managedAllocate (manageOutputDevice Nothing)
+  outDev <- openOutputDevice Nothing
   api <- currentApi outDev
   liftIO (print api)
   ports <- listPorts outDev

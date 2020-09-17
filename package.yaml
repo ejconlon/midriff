@@ -20,10 +20,11 @@ dependencies:
 - containers >= 0.6.2.1 && < 1
 - little-rio >= 0.2.1 && < 1
 - resourcet >= 1.2.4.2 && < 2
-- RtMidi >= 0.2.0.0 && < 1
+- RtMidi >= 0.3.0.0 && < 1
 - stm >= 2.5.0.0 && < 3
 - unliftio-core >= 0.1.2.0 && < 1
 - unliftio >= 0.2.13 && < 1
+- vector >= 0.12.1.2 && < 1
 
 default-extensions:
   - ConstraintKinds

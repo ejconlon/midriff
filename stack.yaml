@@ -1,8 +1,8 @@
-resolver: lts-16.13
+resolver: lts-16.14
 
 packages:
 - .
 
 extra-deps:
 - little-rio-0.2.1
-- RtMidi-0.2.0.0
+- RtMidi-0.4.0.0

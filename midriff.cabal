@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 0c5e8e5f3b3b946442839cb9f1af443da7a067986921bef2dcec682b63884ae0
+-- hash: fd52aa05508eda8c0dd0b1ba520405de7f0f51acd4be74df14d2359ca053e213
 
 name:           midriff
 version:        0.1.0
@@ -42,7 +42,7 @@ library
   default-extensions: ConstraintKinds DeriveFunctor DeriveFoldable DeriveGeneric DeriveTraversable DerivingStrategies FlexibleContexts FlexibleInstances FunctionalDependencies GADTs GeneralizedNewtypeDeriving KindSignatures MultiParamTypeClasses Rank2Types TypeApplications TypeFamilies
   ghc-options: -Wall -Wcompat -Widentities -Wincomplete-record-updates -Wincomplete-uni-patterns -Wpartial-fields -Wredundant-constraints -fno-warn-unused-top-binds
   build-depends:
-      RtMidi >=0.2.0.0 && <1
+      RtMidi >=0.3.0.0 && <1
     , async >=2.2.2 && <3
     , base >=4.12 && <5
     , conduit >=1.3.2 && <2
@@ -52,6 +52,7 @@ library
     , stm >=2.5.0.0 && <3
     , unliftio >=0.2.13 && <1
     , unliftio-core >=0.1.2.0 && <1
+    , vector >=0.12.1.2 && <1
   default-language: Haskell2010
 
 executable midriff-exe
@@ -63,7 +64,7 @@ executable midriff-exe
   default-extensions: ConstraintKinds DeriveFunctor DeriveFoldable DeriveGeneric DeriveTraversable DerivingStrategies FlexibleContexts FlexibleInstances FunctionalDependencies GADTs GeneralizedNewtypeDeriving KindSignatures MultiParamTypeClasses Rank2Types TypeApplications TypeFamilies
   ghc-options: -Wall -Wcompat -Widentities -Wincomplete-record-updates -Wincomplete-uni-patterns -Wpartial-fields -Wredundant-constraints -fno-warn-unused-top-binds -threaded -rtsopts -with-rtsopts=-N
   build-depends:
-      RtMidi >=0.2.0.0 && <1
+      RtMidi >=0.3.0.0 && <1
     , async >=2.2.2 && <3
     , base >=4.12 && <5
     , conduit >=1.3.2 && <2
@@ -74,6 +75,7 @@ executable midriff-exe
     , stm >=2.5.0.0 && <3
     , unliftio >=0.2.13 && <1
     , unliftio-core >=0.1.2.0 && <1
+    , vector >=0.12.1.2 && <1
   default-language: Haskell2010
 
 test-suite midriff-test
@@ -87,7 +89,7 @@ test-suite midriff-test
   default-extensions: ConstraintKinds DeriveFunctor DeriveFoldable DeriveGeneric DeriveTraversable DerivingStrategies FlexibleContexts FlexibleInstances FunctionalDependencies GADTs GeneralizedNewtypeDeriving KindSignatures MultiParamTypeClasses Rank2Types TypeApplications TypeFamilies
   ghc-options: -Wall -Wcompat -Widentities -Wincomplete-record-updates -Wincomplete-uni-patterns -Wpartial-fields -Wredundant-constraints -fno-warn-unused-top-binds -threaded -rtsopts -with-rtsopts=-N
   build-depends:
-      RtMidi >=0.2.0.0 && <1
+      RtMidi >=0.3.0.0 && <1
     , async >=2.2.2 && <3
     , base >=4.12 && <5
     , conduit >=1.3.2 && <2
@@ -100,4 +102,5 @@ test-suite midriff-test
     , tasty-hunit
     , unliftio >=0.2.13 && <1
     , unliftio-core >=0.1.2.0 && <1
+    , vector >=0.12.1.2 && <1
   default-language: Haskell2010

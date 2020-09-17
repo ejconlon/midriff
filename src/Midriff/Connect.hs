@@ -2,8 +2,8 @@ module Midriff.Connect
   ( InputState (..)
   , InputQueue
   , OutputState (..)
-  , manageInputDevice
-  , manageOutputDevice
+  , openInputDevice
+  , openOutputDevice
   , manageInput
   , manageOutput
   , inputC
@@ -17,17 +17,18 @@ import Control.Monad (void)
 import Control.Monad.IO.Class (MonadIO (..))
 import Control.Monad.Trans.Resource (MonadResource)
 import Data.Conduit (ConduitT, await)
+import qualified Data.Vector.Storable as VS
 import Data.Void (Void)
 import Data.Word (Word8)
-import Midriff.Config (PortConfig (..), DeviceConfig (..), Ignores (..), InputConfig (..), PortId (..))
+import Midriff.Config (DeviceConfig (..), Ignores (..), InputConfig (..), PortConfig (..), PortId (..))
 import Midriff.CQueue (CQueue, closeCQueue, newCQueue, sourceCQueue, writeCQueue)
 import Midriff.Resource (Manager, managedConduit, mkManager)
-import Sound.RtMidi (InputDevice, OutputDevice, cancelCallback, closeDevice, closePort, createInput, createOutput,
-                     defaultInput, defaultOutput, ignoreTypes, openPort, openVirtualPort, sendMessage, setCallback)
+import Sound.RtMidi (InputDevice, OutputDevice, cancelCallback, closePort, createInput, createOutput, defaultInput,
+                     defaultOutput, ignoreTypes, openPort, openVirtualPort, sendMessage, setCallback)
 
-type InputCallback = Double -> [Word8] -> IO ()
+type InputCallback = Double -> VS.Vector Word8 -> IO ()
 
-type InputQueue = CQueue (Double, [Word8])
+type InputQueue = CQueue (Double, VS.Vector Word8)
 
 inputCb :: InputQueue -> InputCallback
 inputCb cq fracSecs bytes = atomically (void (writeCQueue (fracSecs, bytes) cq))
@@ -37,24 +38,18 @@ data InputState = InputState
   , istQueue :: !InputQueue
   }
 
-acquireInputDevice :: Maybe DeviceConfig -> IO InputDevice
-acquireInputDevice mpc = do
+openInputDevice :: MonadIO m => Maybe DeviceConfig -> m InputDevice
+openInputDevice mpc = do
   case mpc of
     Nothing -> defaultInput
     -- Empty queue is fine for this, since we set a callback
     Just (DeviceConfig api client) -> createInput api client 0
 
-manageInputDevice :: Maybe DeviceConfig -> Manager InputDevice
-manageInputDevice dcfg = mkManager (acquireInputDevice dcfg) closeDevice
-
-acquireOutputDevice :: Maybe DeviceConfig -> IO OutputDevice
-acquireOutputDevice mpc = do
+openOutputDevice :: MonadIO m => Maybe DeviceConfig -> m OutputDevice
+openOutputDevice mpc = do
   case mpc of
     Nothing -> defaultOutput
     Just (DeviceConfig api client) -> createOutput api client
-
-manageOutputDevice :: Maybe DeviceConfig -> Manager OutputDevice
-manageOutputDevice dcfg = mkManager (acquireOutputDevice dcfg) closeDevice
 
 acquireInput :: InputConfig -> InputDevice -> IO InputState
 acquireInput (InputConfig (PortConfig name pid) cap migs) dev = do
@@ -84,10 +79,10 @@ releaseInput (InputState dev cq) = do
 manageInput :: InputConfig -> InputDevice -> Manager InputState
 manageInput icfg dev = mkManager (acquireInput icfg dev) releaseInput
 
-inputC :: MonadIO m => InputState -> ConduitT () (Int, (Double, [Word8])) m ()
+inputC :: MonadIO m => InputState -> ConduitT () (Int, (Double, VS.Vector Word8)) m ()
 inputC (InputState _ cq) = sourceCQueue cq
 
-manageInputC :: MonadResource m => InputConfig -> InputDevice -> ConduitT () (Int, (Double, [Word8])) m ()
+manageInputC :: MonadResource m => InputConfig -> InputDevice -> ConduitT () (Int, (Double, VS.Vector Word8)) m ()
 manageInputC icfg dev = managedConduit (manageInput icfg dev) inputC
 
 newtype OutputState = OutputState
@@ -108,7 +103,7 @@ releaseOutput (OutputState dev) = closePort dev
 manageOutput :: PortConfig -> OutputDevice -> Manager OutputState
 manageOutput cfg dev = mkManager (acquireOutput cfg dev) releaseOutput
 
-outputC :: MonadIO m => OutputState -> ConduitT [Word8] Void m ()
+outputC :: MonadIO m => OutputState -> ConduitT (VS.Vector Word8) Void m ()
 outputC (OutputState dev) = loop where
   loop = do
     mbytes <- await
@@ -116,5 +111,5 @@ outputC (OutputState dev) = loop where
       Nothing -> pure ()
       Just bytes -> sendMessage dev bytes *> loop
 
-manageOutputC :: MonadResource m => PortConfig -> OutputDevice -> ConduitT [Word8] Void m ()
+manageOutputC :: MonadResource m => PortConfig -> OutputDevice -> ConduitT (VS.Vector Word8) Void m ()
 manageOutputC cfg dev = managedConduit (manageOutput cfg dev) outputC
