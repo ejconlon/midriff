@@ -17,9 +17,6 @@ import Midriff.Resource (managedAsync)
 import Midriff.Time (timeDeltaFromFracSecs)
 import Sound.RtMidi (currentApi, listPorts)
 
-noteOn :: Int -> Int -> MidiMsg
-noteOn k v = ParsedMidiMsg (MidiChanVoice (ChanVoiceMsg 1 (ChanVoiceNoteOn k v)))
-
 songEvents :: [MidiEvent]
 songEvents =
   let arp0 = take 12 $ cycle [0x51, 0x55, 0x58]
@@ -27,7 +24,7 @@ songEvents =
       arp2 = take 12 $ cycle [0x50, 0x53, 0x58]
       song = cycle (arp0 ++ arp1 ++ arp2 ++ arp0)
       td = timeDeltaFromFracSecs (0.5 :: Double)
-  in [MidiEvent td (noteOn k 0x7f) | k <- take 240 song]
+  in [MidiEvent td (noteOn (Channel 1) (Note k) (Velocity 0x7f)) | k <- take 240 song]
 
 songC :: MonadIO m => ConduitT () (VS.Vector Word8) m ()
 songC = sourceList songEvents .| msgDelayC .| encodeMsgC

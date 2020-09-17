@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 54d2ecbeca975d30d63930404fed5c7f9e1198b38b4b01e479431ccf54bf7194
+-- hash: 605eeb06871a15458a2c54f0e6a4dd947358e458029b2b662cc847bf4caa91a6
 
 name:           midriff
 version:        0.1.0
@@ -97,12 +97,14 @@ test-suite midriff-test
     , conduit >=1.3.2 && <2
     , containers >=0.6.2.1 && <1
     , deepseq >=1.4.4.0 && <2
+    , hedgehog >=1.0.3 && <2
     , little-rio >=0.2.1 && <1
     , midriff
     , resourcet >=1.2.4.2 && <2
     , stm >=2.5.0.0 && <3
-    , tasty
-    , tasty-hunit
+    , tasty >=1.2.3 && <2
+    , tasty-hedgehog >=1.0.0.2 && <2
+    , tasty-hunit >=0.10.0.2 && <1
     , unliftio >=0.2.13 && <1
     , unliftio-core >=0.1.2.0 && <1
     , vector >=0.12.1.2 && <1

@@ -1,8 +1,19 @@
 {-# LANGUAGE DeriveAnyClass #-}
+{-# LANGUAGE ViewPatterns #-}
 
 -- | Many of the codec details are lifted from hmidi (see README for license and attribution).
 module Midriff.Msg
-  ( ChanVoiceMsg (..)
+  ( Channel (..)
+  , Note (..)
+  , Velocity (..)
+  , ControlNum (..)
+  , ControlVal (..)
+  , Pressure (..)
+  , ProgramNum (..)
+  , PitchBend (..)
+  , noteOn
+  , noteOff
+  , ChanVoiceMsg (..)
   , ChanVoiceMsgData (..)
   , MidiMsg (..)
   , MidiEvent (..)
@@ -16,23 +27,70 @@ module Midriff.Msg
 
 import Control.DeepSeq (NFData)
 import Data.Bits (shiftL, shiftR, (.&.), (.|.))
+import Data.Coerce (coerce)
 import qualified Data.Vector.Storable as VS
 import Data.Word (Word8)
 import GHC.Generics (Generic)
 import Midriff.Time (TimeDelta, timeDeltaFromFracSecs)
 
+newtype Channel = Channel { unChannel :: Int }
+  deriving stock (Eq, Show, Generic)
+  deriving newtype (Num)
+  deriving anyclass (NFData)
+
+newtype Note = Note { unNote :: Int }
+  deriving stock (Eq, Show, Generic)
+  deriving newtype (Num)
+  deriving anyclass (NFData)
+
+newtype Velocity = Velocity { unVelocity :: Int }
+  deriving stock (Eq, Show, Generic)
+  deriving newtype (Num)
+  deriving anyclass (NFData)
+
+newtype ControlNum = ControlNum { unControlNum :: Int }
+  deriving stock (Eq, Show, Generic)
+  deriving newtype (Num)
+  deriving anyclass (NFData)
+
+newtype ControlVal = ControlVal { unControlVal :: Int }
+  deriving stock (Eq, Show, Generic)
+  deriving newtype (Num)
+  deriving anyclass (NFData)
+
+newtype Pressure = Pressure { unPressure :: Int }
+  deriving stock (Eq, Show, Generic)
+  deriving newtype (Num)
+  deriving anyclass (NFData)
+
+newtype ProgramNum = ProgramNum { unProgramNum :: Int }
+  deriving stock (Eq, Show, Generic)
+  deriving newtype (Num)
+  deriving anyclass (NFData)
+
+newtype PitchBend = PitchBend { unPitchBend :: Int }
+  deriving stock (Eq, Show, Generic)
+  deriving newtype (Num)
+  deriving anyclass (NFData)
+
+noteOn :: Channel -> Note -> Velocity -> MidiMsg
+noteOn c k v = ParsedMidiMsg (MidiChanVoice (ChanVoiceMsg c (ChanVoiceNoteOnOff k v)))
+
+noteOff :: Channel -> Note -> MidiMsg
+noteOff c k = noteOn c k 0
+
 data ChanVoiceMsgData =
-    ChanVoiceNoteOn !Int !Int
-  | ChanVoicePolyAftertouch !Int !Int
-  | ChanVoiceCC !Int !Int
-  | ChanVoiceProgramChange !Int
-  | ChanVoiceAftertouch !Int
-  | ChanVoicePitchWheel !Int
+    ChanVoiceNoteOnOff !Note !Velocity
+  | ChanVoicePolyAftertouch !Note !Pressure
+  | ChanVoiceCC !ControlNum !ControlVal
+  | ChanVoiceProgramChange !ProgramNum
+  | ChanVoiceAftertouch !Pressure
+  | ChanVoicePitchWheel !PitchBend
   deriving stock (Eq, Show, Generic)
   deriving anyclass (NFData)
 
 data ChanVoiceMsg =
-  ChanVoiceMsg !Int !ChanVoiceMsgData
+  ChanVoiceMsg !Channel !ChanVoiceMsgData
   deriving stock (Eq, Show, Generic)
   deriving anyclass (NFData)
 
@@ -72,13 +130,13 @@ decodeShortMsgParsed (ShortMsg chn msg bs) =
 
 decodeChanVoice :: Word8 -> ShortBytes Int -> Maybe ChanVoiceMsgData
 decodeChanVoice msg bs = case (msg, bs) of
-   (8,  ShortBytes2 k _) -> Just (ChanVoiceNoteOn k 0)
-   (9,  ShortBytes2 k v) -> Just (ChanVoiceNoteOn k v)
-   (10, ShortBytes2 k v) -> Just (ChanVoicePolyAftertouch k v)
-   (11, ShortBytes2 k v) -> Just (ChanVoiceCC k v)
-   (12, ShortBytes1 k)   -> Just (ChanVoiceProgramChange k)
-   (13, ShortBytes1 k)   -> Just (ChanVoiceAftertouch k)
-   (14, ShortBytes2 k v) -> Just (ChanVoicePitchWheel (k + shiftL v 7 - 8192))
+   (8,  ShortBytes2 k _) -> Just (ChanVoiceNoteOnOff (coerce k) 0)
+   (9,  ShortBytes2 k v) -> Just (ChanVoiceNoteOnOff (coerce k) (coerce v))
+   (10, ShortBytes2 k v) -> Just (ChanVoicePolyAftertouch (coerce k) (coerce v))
+   (11, ShortBytes2 k v) -> Just (ChanVoiceCC (coerce k) (coerce v))
+   (12, ShortBytes1 k)   -> Just (ChanVoiceProgramChange (coerce k))
+   (13, ShortBytes1 k)   -> Just (ChanVoiceAftertouch (coerce k))
+   (14, ShortBytes2 k v) -> Just (ChanVoicePitchWheel (coerce (k + shiftL v 7 - 8192)))
    _ -> Nothing
 
 decodeOther :: Word8 -> ShortBytes Int -> Maybe MidiParsed
@@ -96,14 +154,14 @@ decodeOther lo bs = case (lo, bs) of
   _ -> Nothing
 
 encodeShortMsgParsed :: MidiParsed -> ShortMsg
-encodeShortMsgParsed (MidiChanVoice (ChanVoiceMsg chn msg')) =
+encodeShortMsgParsed (MidiChanVoice (ChanVoiceMsg (coerce -> chn) msg')) =
   case msg' of
-    ChanVoiceNoteOn  k v         -> mkShortMsg chn  9 (ShortBytes2 k v)
-    ChanVoicePolyAftertouch k v  -> mkShortMsg chn 10 (ShortBytes2 k v)
-    ChanVoiceCC k v              -> mkShortMsg chn 11 (ShortBytes2 k v)
-    ChanVoiceProgramChange k     -> mkShortMsg chn 12 (ShortBytes1 k)
-    ChanVoiceAftertouch k        -> mkShortMsg chn 13 (ShortBytes1 k)
-    ChanVoicePitchWheel n        -> let m = min 16383 (max 0 (n + 8192)) in mkShortMsg chn 14 (ShortBytes2 (m .&. 127) (shiftR m 7))
+    ChanVoiceNoteOnOff k v       -> mkShortMsg chn  9 (ShortBytes2 (coerce k) (coerce v))
+    ChanVoicePolyAftertouch k v  -> mkShortMsg chn 10 (ShortBytes2 (coerce k) (coerce v))
+    ChanVoiceCC k v              -> mkShortMsg chn 11 (ShortBytes2 (coerce k) (coerce v))
+    ChanVoiceProgramChange k     -> mkShortMsg chn 12 (ShortBytes1 (coerce k))
+    ChanVoiceAftertouch k        -> mkShortMsg chn 13 (ShortBytes1 (coerce k))
+    ChanVoicePitchWheel n        -> let m = min 16383 (max 0 ((coerce n) + 8192)) in mkShortMsg chn 14 (ShortBytes2 (m .&. 127) (shiftR m 7))
 
 encodeShortMsgParsed (MidiSongPosition p) = mkShortMsg 15  3 (ShortBytes2 (p .&. 7) (shiftR p 7))
 encodeShortMsgParsed (MidiSongSelect   s) = mkShortMsg 15  3 (ShortBytes1 s)
