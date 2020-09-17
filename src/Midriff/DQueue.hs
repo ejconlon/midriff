@@ -22,7 +22,7 @@ import qualified Data.Sequence as Seq
 data DQueueState a = DQueueState
   { dqsDropped :: !Int
   , dqsBody :: !(Seq a)
-  } deriving (Eq, Show, Functor)
+  }
 
 emptyDQueueState :: DQueueState a
 emptyDQueueState = DQueueState 0 Seq.empty

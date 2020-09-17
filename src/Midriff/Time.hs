@@ -1,3 +1,5 @@
+{-# LANGUAGE DeriveAnyClass #-}
+
 module Midriff.Time
   ( TimeDelta
   , timeDeltaFromFracSecs
@@ -18,11 +20,16 @@ module Midriff.Time
   ) where
 
 import Control.Concurrent (threadDelay)
+import Control.DeepSeq (NFData)
 import Data.Word (Word64)
 import GHC.Clock (getMonotonicTimeNSec)
+import GHC.Generics (Generic)
 
 -- | Non-negative time difference in nanoseconds since last event
-newtype TimeDelta = TimeDelta { unTimeDelta :: Word64 } deriving (Eq, Show, Ord, Num)
+newtype TimeDelta = TimeDelta { unTimeDelta :: Word64 }
+  deriving stock (Eq, Show, Ord, Generic)
+  deriving newtype (Num)
+  deriving anyclass (NFData)
 
 -- | Return a 'TimeDelta' corresponding the the given number of fractional seconds.
 -- (For example, 1.5 represents one and a half seconds.)
@@ -50,7 +57,10 @@ diffTimeDelta (TimeDelta big) (TimeDelta small) =
     else Just (TimeDelta (big - small))
 
 -- | Monotonic time in nanoseconds since some unspecified epoch (see 'getMonotonicTimeNs')
-newtype MonoTime = MonoTime { unMonoTime :: Word64 } deriving (Eq, Show, Ord, Num)
+newtype MonoTime = MonoTime { unMonoTime :: Word64 }
+  deriving stock (Eq, Show, Ord, Generic)
+  deriving newtype (Num)
+  deriving anyclass (NFData)
 
 monoTimeFromFracSecs :: RealFrac a => a -> MonoTime
 monoTimeFromFracSecs d = MonoTime (round (1000000000 * toRational d))

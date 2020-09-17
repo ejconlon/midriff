@@ -1,3 +1,5 @@
+{-# LANGUAGE DeriveAnyClass #-}
+
 module Midriff.CQueue
   ( CQueue
   , WriteResult (..)
@@ -12,8 +14,10 @@ module Midriff.CQueue
 
 import Control.Applicative (liftA2)
 import Control.Concurrent.STM (STM, atomically)
+import Control.DeepSeq (NFData)
 import Control.Monad.IO.Class (MonadIO (..))
 import Data.Conduit (ConduitT, await, yield)
+import GHC.Generics (Generic)
 import Midriff.DQueue (DQueue, newDQueue, readDQueue, tryReadDQueue, writeDQueue)
 import Midriff.TEvent (TEvent, isSetTEvent, newTEvent, setTEvent)
 
@@ -50,7 +54,8 @@ data WriteResult =
     ClosedResult
   | OkResult
   | DroppedResult
-  deriving (Eq, Show)
+  deriving stock (Eq, Show, Enum, Bounded, Generic)
+  deriving anyclass (NFData)
 
 writeCQueue :: a -> CQueue a -> STM WriteResult
 writeCQueue val (CQueue q e) = do

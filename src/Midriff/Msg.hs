@@ -1,3 +1,5 @@
+{-# LANGUAGE DeriveAnyClass #-}
+
 -- | Many of the codec details are lifted from hmidi (see README for license and attribution).
 module Midriff.Msg
   ( ChanVoiceMsg (..)
@@ -12,9 +14,11 @@ module Midriff.Msg
   , isSysexFrame
   ) where
 
+import Control.DeepSeq (NFData)
 import Data.Bits (shiftL, shiftR, (.&.), (.|.))
 import qualified Data.Vector.Storable as VS
 import Data.Word (Word8)
+import GHC.Generics (Generic)
 import Midriff.Time (TimeDelta, timeDeltaFromFracSecs)
 
 data ChanVoiceMsgData =
@@ -24,9 +28,13 @@ data ChanVoiceMsgData =
   | ChanVoiceProgramChange !Int
   | ChanVoiceAftertouch !Int
   | ChanVoicePitchWheel !Int
-  deriving (Eq, Show)
+  deriving stock (Eq, Show, Generic)
+  deriving anyclass (NFData)
 
-data ChanVoiceMsg = ChanVoiceMsg !Int !ChanVoiceMsgData deriving (Eq, Show)
+data ChanVoiceMsg =
+  ChanVoiceMsg !Int !ChanVoiceMsgData
+  deriving stock (Eq, Show, Generic)
+  deriving anyclass (NFData)
 
 -- TODO(ejconlon) Implement ChannelMode message
 -- https://www.midi.org/specifications/item/table-1-summary-of-midi-message
@@ -41,14 +49,19 @@ data MidiParsed =
   | MidiSRTStop
   | MidiActiveSensing
   | MidiReset
-  deriving (Eq, Show)
+  deriving stock (Eq, Show, Generic)
+  deriving anyclass (NFData)
 
 data MidiMsg =
     UnparsedMidiMsg !(VS.Vector Word8)
   | ParsedMidiMsg !MidiParsed
-  deriving (Eq, Show)
+  deriving stock (Eq, Show, Generic)
+  deriving anyclass (NFData)
 
-data MidiEvent = MidiEvent !TimeDelta !MidiMsg deriving (Eq, Show)
+data MidiEvent =
+  MidiEvent !TimeDelta !MidiMsg
+  deriving stock (Eq, Show, Generic)
+  deriving anyclass (NFData)
 
 decodeShortMsgParsed :: ShortMsg -> Maybe MidiParsed
 decodeShortMsgParsed (ShortMsg chn msg bs) =
@@ -110,7 +123,8 @@ data ShortBytes a =
     ShortBytes0
   | ShortBytes1 !a
   | ShortBytes2 !a !a
-  deriving (Eq, Show)
+  deriving stock (Eq, Show, Generic)
+  deriving anyclass (NFData)
 
 convertShortBytes :: (Integral a, Num b) => ShortBytes a -> ShortBytes b
 convertShortBytes bs =
@@ -123,7 +137,8 @@ data ShortMsg = ShortMsg
   { smChannel :: !Word8
   , smMsg     :: !Word8
   , smBytes   :: !(ShortBytes Word8)
-  } deriving (Eq, Show)
+  } deriving stock (Eq, Show, Generic)
+    deriving anyclass (NFData)
 
 isShortFrame :: VS.Vector Word8 -> Bool
 isShortFrame bytes = not (VS.null bytes) && VS.head bytes /= 0xf0
