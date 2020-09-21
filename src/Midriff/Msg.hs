@@ -162,7 +162,7 @@ encodeShortMsgParsed (MidiChanVoice (ChanVoiceMsg (coerce -> chn) msg')) =
     ChanVoiceCC k v              -> mkShortMsg chn 11 (ShortBytes2 (coerce k) (coerce v))
     ChanVoiceProgramChange k     -> mkShortMsg chn 12 (ShortBytes1 (coerce k))
     ChanVoiceAftertouch k        -> mkShortMsg chn 13 (ShortBytes1 (coerce k))
-    ChanVoicePitchWheel n        -> let m = min 16383 (max 0 ((coerce n) + 8192)) in mkShortMsg chn 14 (ShortBytes2 (m .&. 127) (shiftR m 7))
+    ChanVoicePitchWheel n        -> let m = min 16383 (max 0 (coerce n + 8192)) in mkShortMsg chn 14 (ShortBytes2 (m .&. 127) (shiftR m 7))
 
 encodeShortMsgParsed (MidiSongPosition p) = mkShortMsg 15  3 (ShortBytes2 (p .&. 7) (shiftR p 7))
 encodeShortMsgParsed (MidiSongSelect   s) = mkShortMsg 15  3 (ShortBytes1 s)
