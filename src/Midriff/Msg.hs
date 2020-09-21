@@ -28,6 +28,7 @@ module Midriff.Msg
 import Control.DeepSeq (NFData)
 import Data.Bits (shiftL, shiftR, (.&.), (.|.))
 import Data.Coerce (coerce)
+import Data.Hashable (Hashable)
 import qualified Data.Vector.Storable as VS
 import Data.Word (Word8)
 import GHC.Generics (Generic)
@@ -36,42 +37,42 @@ import Midriff.Time (TimeDelta, timeDeltaFromFracSecs)
 newtype Channel = Channel { unChannel :: Int }
   deriving stock (Eq, Show, Generic)
   deriving newtype (Num)
-  deriving anyclass (NFData)
+  deriving anyclass (NFData, Hashable)
 
 newtype Note = Note { unNote :: Int }
   deriving stock (Eq, Show, Generic)
   deriving newtype (Num)
-  deriving anyclass (NFData)
+  deriving anyclass (NFData, Hashable)
 
 newtype Velocity = Velocity { unVelocity :: Int }
   deriving stock (Eq, Show, Generic)
   deriving newtype (Num)
-  deriving anyclass (NFData)
+  deriving anyclass (NFData, Hashable)
 
 newtype ControlNum = ControlNum { unControlNum :: Int }
   deriving stock (Eq, Show, Generic)
   deriving newtype (Num)
-  deriving anyclass (NFData)
+  deriving anyclass (NFData, Hashable)
 
 newtype ControlVal = ControlVal { unControlVal :: Int }
   deriving stock (Eq, Show, Generic)
   deriving newtype (Num)
-  deriving anyclass (NFData)
+  deriving anyclass (NFData, Hashable)
 
 newtype Pressure = Pressure { unPressure :: Int }
   deriving stock (Eq, Show, Generic)
   deriving newtype (Num)
-  deriving anyclass (NFData)
+  deriving anyclass (NFData, Hashable)
 
 newtype ProgramNum = ProgramNum { unProgramNum :: Int }
   deriving stock (Eq, Show, Generic)
   deriving newtype (Num)
-  deriving anyclass (NFData)
+  deriving anyclass (NFData, Hashable)
 
 newtype PitchBend = PitchBend { unPitchBend :: Int }
   deriving stock (Eq, Show, Generic)
   deriving newtype (Num)
-  deriving anyclass (NFData)
+  deriving anyclass (NFData, Hashable)
 
 noteOn :: Channel -> Note -> Velocity -> MidiMsg
 noteOn c k v = ParsedMidiMsg (MidiChanVoice (ChanVoiceMsg c (ChanVoiceNoteOnOff k v)))

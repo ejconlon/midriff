@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 605eeb06871a15458a2c54f0e6a4dd947358e458029b2b662cc847bf4caa91a6
+-- hash: 3a32cf03341936574fcf5e9f8757482235aafc576e72d5b2f21f06b50d1d77e1
 
 name:           midriff
 version:        0.1.0
@@ -48,6 +48,7 @@ library
     , conduit >=1.3.2 && <2
     , containers >=0.6.2.1 && <1
     , deepseq >=1.4.4.0 && <2
+    , hashable >=1.3.0.0 && <2
     , little-rio >=0.2.1 && <1
     , resourcet >=1.2.4.2 && <2
     , stm >=2.5.0.0 && <3
@@ -71,6 +72,7 @@ executable midriff-exe
     , conduit >=1.3.2 && <2
     , containers >=0.6.2.1 && <1
     , deepseq >=1.4.4.0 && <2
+    , hashable >=1.3.0.0 && <2
     , little-rio >=0.2.1 && <1
     , midriff
     , resourcet >=1.2.4.2 && <2
@@ -84,7 +86,6 @@ test-suite midriff-test
   type: exitcode-stdio-1.0
   main-is: Main.hs
   other-modules:
-      Test.Midriff.SimpleTest
       Paths_midriff
   hs-source-dirs:
       test
@@ -97,6 +98,7 @@ test-suite midriff-test
     , conduit >=1.3.2 && <2
     , containers >=0.6.2.1 && <1
     , deepseq >=1.4.4.0 && <2
+    , hashable >=1.3.0.0 && <2
     , hedgehog >=1.0.3 && <2
     , little-rio >=0.2.1 && <1
     , midriff

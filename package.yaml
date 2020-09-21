@@ -19,6 +19,7 @@ dependencies:
 - conduit >= 1.3.2 && < 2
 - containers >= 0.6.2.1 && < 1
 - deepseq >= 1.4.4.0 && < 2
+- hashable >= 1.3.0.0 && < 2
 - little-rio >= 0.2.1 && < 1
 - resourcet >= 1.2.4.2 && < 2
 - RtMidi >= 0.3.0.0 && < 1
