@@ -2,15 +2,13 @@ module Main (main) where
 
 import Control.Concurrent.Async (wait)
 import Control.Monad.IO.Class (MonadIO (..))
-import Control.Monad.IO.Unlift (MonadUnliftIO)
-import Control.Monad.Trans.Resource (MonadResource)
 import Data.Conduit (ConduitT, runConduit, (.|))
 import Data.Conduit.List (sourceList)
 import qualified Data.Vector.Storable as VS
 import Data.Word (Word8)
 import Midriff.Config (PortConfig (..), PortId (..))
 import Midriff.Connect (manageOutputC, openOutputDevice)
-import Midriff.Exe (runSimpleExe)
+import Midriff.Exe (MonadExe, runSimpleExe)
 import Midriff.Msg
 import Midriff.Process (encodeMsgC, msgDelayC)
 import Midriff.Resource (managedAsync)
@@ -29,7 +27,7 @@ songEvents =
 songC :: MonadIO m => ConduitT () (VS.Vector Word8) m ()
 songC = sourceList songEvents .| msgDelayC .| encodeMsgC
 
-program :: (MonadResource m, MonadUnliftIO m) => m ()
+program :: MonadExe m => m ()
 program = do
   outDev <- openOutputDevice Nothing
   api <- currentApi outDev
