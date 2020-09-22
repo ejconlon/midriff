@@ -4,6 +4,7 @@ module Midriff.CQueue
   ( CQueue
   , WriteResult (..)
   , newCQueue
+  , newMaxCQueue
   , closeCQueue
   , isClosedCQueue
   , readCQueue
@@ -29,6 +30,9 @@ data CQueue a = CQueue
 
 newCQueue :: Int -> STM (CQueue a)
 newCQueue cap = liftA2 CQueue (newDQueue cap) newTEvent
+
+newMaxCQueue :: STM (CQueue a)
+newMaxCQueue = newCQueue maxBound
 
 closeCQueue :: CQueue a -> STM ()
 closeCQueue (CQueue _ e) = setTEvent e

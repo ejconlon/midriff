@@ -6,6 +6,7 @@ module Midriff.Resource
   , managedConduit
   , managedAllocate
   , managedAsync
+  , managedAsyncIO
   ) where
 
 import Control.Concurrent.Async (Async, async, cancel)
@@ -50,3 +51,7 @@ managedAsync :: (MonadResource m, MonadUnliftIO m) => m a -> m (ReleaseKey, Asyn
 managedAsync m = do
   run <- askRunInIO
   allocate (async (run m)) cancel
+
+-- | 'managedAsync' wrapping an 'IO' action
+managedAsyncIO :: MonadResource m => IO a -> m (ReleaseKey, Async a)
+managedAsyncIO m = allocate (async m) cancel

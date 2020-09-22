@@ -1,6 +1,7 @@
 module Midriff.DQueue
   ( DQueue
   , newDQueue
+  , newMaxDQueue
   , writeDQueue
   , isEmptyDQueue
   , isFullDQueue
@@ -14,7 +15,6 @@ module Midriff.DQueue
 import Control.Concurrent.STM (STM, retry)
 import Control.Concurrent.STM.TVar (TVar)
 import qualified Control.Concurrent.STM.TVar as TVar
-import Data.Foldable (toList)
 import Data.Sequence (Seq (..))
 import qualified Data.Sequence as Seq
 
@@ -42,6 +42,9 @@ newDQueue cap =
     then error "DQueue must have non-zero capacity"
     else fmap (DQueue cap) (TVar.newTVar emptyDQueueState)
 
+newMaxDQueue :: STM (DQueue a)
+newMaxDQueue = newDQueue maxBound
+
 -- | Append an element to the 'DQueue'. Returns true if it overwrites an element.
 writeDQueue :: a -> DQueue a -> STM Bool
 writeDQueue val (DQueue cap mst) = TVar.stateTVar mst $ \(DQueueState dropped body) ->
@@ -60,8 +63,8 @@ isFullDQueue :: DQueue a -> STM Bool
 isFullDQueue (DQueue cap mst) = fmap (\(DQueueState _ body) -> Seq.length body == cap) (TVar.readTVar mst)
 
 -- | Returns all elements and the number that have been dropped since last read. Clears the queue.
-flushDQueue :: DQueue a -> STM (Int, [a])
-flushDQueue (DQueue _ mst) = fmap (\(DQueueState dropped body) -> (dropped, toList body)) (TVar.swapTVar mst emptyDQueueState)
+flushDQueue :: DQueue a -> STM (Int, Seq a)
+flushDQueue (DQueue _ mst) = fmap (\(DQueueState dropped body) -> (dropped, body)) (TVar.swapTVar mst emptyDQueueState)
 
 -- | Non-blocking read.
 -- If the queue is non-empty, returns the first element and the number that have been dropped since last read.
