@@ -66,7 +66,6 @@ ignoreNone = Ignores False False False
 -- | Additional config for input.
 data InputConfig = InputConfig
   { icPortConfig :: !PortConfig   -- ^ Which port to read from
-  , icCapacity :: !Int            -- ^ Capacity of the input buffer
   , icIgnore :: !(Maybe Ignores)  -- ^ Optional ignores
   } deriving stock (Eq, Show, Generic)
     deriving anyclass (NFData)

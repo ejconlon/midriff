@@ -3,14 +3,14 @@ module Midriff.Async where
 import Control.Concurrent.Async (Async)
 import Control.Concurrent.STM (atomically)
 import Control.Monad.Trans.Resource (MonadResource, ReleaseKey)
-import Midriff.Connect (InputMsg, InputState (..), OutputMsg, OutputState (..))
+import Midriff.Connect (InputMsg, QueueInputState (..), OutputMsg, OutputState (..))
 import Midriff.CQueue (readCQueue)
 import Midriff.Handle (Handle, newHandleIO, runHandle)
 import Midriff.Resource (managedAsyncIO)
 import Sound.RtMidi (sendMessage)
 
-consumeInput :: MonadResource m => InputState -> Handle (Int, InputMsg) -> m (ReleaseKey, Async ())
-consumeInput (InputState _ queue) handle = managedAsyncIO go where
+consumeQueueInput :: MonadResource m => QueueInputState -> Handle (Int, InputMsg) -> m (ReleaseKey, Async ())
+consumeQueueInput (QueueInputState queue _) handle = managedAsyncIO go where
   go = do
     mayMsg <- atomically (readCQueue queue)
     case mayMsg of

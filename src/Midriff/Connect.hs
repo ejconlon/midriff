@@ -2,18 +2,21 @@ module Midriff.Connect
   ( InputState (..)
   , InputMsg
   , InputQueue
+  , QueueInputState (..)
   , OutputState (..)
   , OutputMsg
   , openInputDevice
   , openOutputDevice
   , manageInput
   , manageOutput
-  , inputC
+  , manageQueueInput
+  , queueInputC
   , outputC
-  , manageInputC
+  , manageQueueInputC
   , manageOutputC
   ) where
 
+import Control.Exception (finally)
 import Control.Concurrent.STM (atomically)
 import Control.Monad (void)
 import Control.Monad.IO.Class (MonadIO (..))
@@ -24,6 +27,7 @@ import Data.Void (Void)
 import Data.Word (Word8)
 import Midriff.Config (DeviceConfig (..), Ignores (..), InputConfig (..), PortConfig (..), PortId (..))
 import Midriff.CQueue (CQueue, closeCQueue, newCQueue, sourceCQueue, writeCQueue)
+-- import Midriff.Handle (Handle)
 import Midriff.Resource (Manager, managedConduit, mkManager)
 import Sound.RtMidi (InputDevice, OutputDevice, cancelCallback, closePort, createInput, createOutput, defaultInput,
                      defaultOutput, ignoreTypes, openPort, openVirtualPort, sendMessage, setCallback)
@@ -33,12 +37,12 @@ type InputMsg = (Double, VS.Vector Word8)
 type InputQueue = CQueue (Double, VS.Vector Word8)
 type OutputMsg = VS.Vector Word8
 
-inputCb :: InputQueue -> InputCallback
-inputCb cq fracSecs bytes = atomically (void (writeCQueue (fracSecs, bytes) cq))
+internalInputCb :: InputQueue -> InputCallback
+internalInputCb cq fracSecs bytes = atomically (void (writeCQueue (fracSecs, bytes) cq))
 
 data InputState = InputState
   { istDevice :: !InputDevice
-  , istQueue :: !InputQueue
+  , istCloseCb :: !(IO ())
   }
 
 openInputDevice :: MonadIO m => Maybe DeviceConfig -> m InputDevice
@@ -54,39 +58,56 @@ openOutputDevice mpc = do
     Nothing -> defaultOutput
     Just (DeviceConfig api client) -> createOutput api client
 
-acquireInput :: InputConfig -> InputDevice -> IO InputState
-acquireInput (InputConfig (PortConfig name pid) cap migs) dev = do
-  -- Create a close event so we can switch to non-blocking reads on close
-  cq <- atomically (newCQueue cap)
+acquireInput :: InputConfig -> InputDevice -> InputCallback -> IO () -> IO InputState
+acquireInput (InputConfig (PortConfig name pid) migs) dev cb closeCb = do
   -- Set our ignored message types
   case migs of
     Nothing -> pure ()
     Just (Ignores x y z) -> ignoreTypes dev x y z
   -- Set our callback to enqueue to our own ring buffer
-  setCallback dev (inputCb cq)
+  setCallback dev cb
   -- Open the port for input
   case pid of
     PortIdReal pnum -> openPort dev pnum name
     PortIdVirtual -> openVirtualPort dev name
-  pure (InputState dev cq)
+  pure (InputState dev closeCb)
 
 releaseInput :: InputState -> IO ()
-releaseInput (InputState dev cq) = do
-  -- Switch to non-blocking reads first (in case the rest throws an exception)
-  atomically (closeCQueue cq)
-  -- Close the port for input
-  closePort dev
-  -- Remove our callback
-  cancelCallback dev
+releaseInput (InputState dev closeCb) = do
+  -- Invoke the close callback but ensure we cleanup
+  finally closeCb $ do
+    -- Close the port for input
+    closePort dev
+    -- Remove our callback
+    cancelCallback dev
 
-manageInput :: InputConfig -> InputDevice -> Manager InputState
-manageInput icfg dev = mkManager (acquireInput icfg dev) releaseInput
+manageInput :: InputConfig -> InputDevice -> InputCallback -> IO () -> Manager InputState
+manageInput icfg dev cb closeCb = mkManager (acquireInput icfg dev cb closeCb) releaseInput
 
-inputC :: MonadIO m => InputState -> ConduitT () (Int, InputMsg) m ()
-inputC (InputState _ cq) = sourceCQueue cq
+data QueueInputState = QueueInputState
+  { _qisCQueue :: CQueue InputMsg
+  , _qisInputState :: InputState
+  }
 
-manageInputC :: MonadResource m => InputConfig -> InputDevice -> ConduitT () (Int, InputMsg) m ()
-manageInputC icfg dev = managedConduit (manageInput icfg dev) inputC
+acquireQueueInput :: InputConfig -> InputDevice -> Int -> IO QueueInputState
+acquireQueueInput icfg dev cap = do
+  cq <- atomically (newCQueue cap)
+  let cb = internalInputCb cq
+      closeCb = atomically (closeCQueue cq)
+  is <- acquireInput icfg dev cb closeCb
+  pure (QueueInputState cq is)
+
+releaseQueueInput :: QueueInputState -> IO ()
+releaseQueueInput = releaseInput . _qisInputState
+
+manageQueueInput :: InputConfig -> InputDevice -> Int -> Manager QueueInputState
+manageQueueInput icfg dev cap = mkManager (acquireQueueInput icfg dev cap) releaseQueueInput
+
+queueInputC :: MonadIO m => QueueInputState -> ConduitT () (Int, InputMsg) m ()
+queueInputC (QueueInputState cq _) = sourceCQueue cq
+
+manageQueueInputC :: MonadResource m => InputConfig -> InputDevice -> Int -> ConduitT () (Int, InputMsg) m ()
+manageQueueInputC icfg dev cap = managedConduit (manageQueueInput icfg dev cap) queueInputC
 
 newtype OutputState = OutputState
   { ostDevice :: OutputDevice
