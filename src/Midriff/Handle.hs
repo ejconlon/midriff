@@ -1,5 +1,6 @@
 module Midriff.Handle
   ( Handle
+  , forHandle
   , newHandle
   , newHandleIO
   , runHandle
@@ -7,6 +8,7 @@ module Midriff.Handle
 
 import Control.Monad.IO.Class (MonadIO (..))
 import Control.Monad.IO.Unlift (MonadUnliftIO, askRunInIO)
+import Data.Foldable (for_)
 import Data.Functor.Contravariant (Contravariant (..))
 
 newtype Handle a = Handle { unHandle :: a -> IO () }
@@ -20,6 +22,9 @@ instance Monoid (Handle a) where
 
 instance Contravariant Handle where
   contramap f (Handle h) = Handle (h . f)
+
+forHandle :: Foldable f => (a -> f b) -> Handle b -> Handle a
+forHandle f (Handle h) = Handle (\a -> for_ (f a) h)
 
 runHandle :: MonadIO m => Handle a -> a -> m ()
 runHandle (Handle h) = liftIO . h
