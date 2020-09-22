@@ -8,9 +8,9 @@ import Data.Conduit (ConduitT, runConduit, (.|))
 import Data.Conduit.List (sourceList)
 import qualified Data.Vector.Storable as VS
 import Data.Word (Word8)
-import LittleRIO (runRIO, withResourceMap)
 import Midriff.Config (PortConfig (..), PortId (..))
 import Midriff.Connect (manageOutputC, openOutputDevice)
+import Midriff.Exe (runSimpleExe)
 import Midriff.Msg
 import Midriff.Process (encodeMsgC, msgDelayC)
 import Midriff.Resource (managedAsync)
@@ -41,4 +41,4 @@ program = do
   liftIO (wait res)
 
 main :: IO ()
-main = withResourceMap (flip runRIO program)
+main = runSimpleExe program

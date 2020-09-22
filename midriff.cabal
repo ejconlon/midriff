@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 9d31542c07026e53275d56fb39d696bd7c37d72f9c1ff0cb7edd510e9ebab7b5
+-- hash: 66b3dcc5871f668f19d85a50991ba144d836ddaf6e3ac3d8d03a7b1b9a35bad9
 
 name:           midriff
 version:        0.1.0
@@ -31,6 +31,7 @@ library
       Midriff.Connect
       Midriff.CQueue
       Midriff.DQueue
+      Midriff.Exe
       Midriff.Handle
       Midriff.Msg
       Midriff.Process
