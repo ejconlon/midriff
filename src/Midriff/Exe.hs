@@ -7,7 +7,7 @@ module Midriff.Exe
 
 import Control.Monad.IO.Unlift (MonadUnliftIO)
 import Control.Monad.Trans.Resource (MonadResource)
-import LittleRIO (ResourceMap, RIO, runRIO, withResourceMap)
+import LittleRIO (RIO, ResourceMap, runRIO, withResourceMap)
 
 type MonadExe m = (MonadUnliftIO m, MonadResource m)
 type SimpleExe a = RIO ResourceMap a
