@@ -217,7 +217,7 @@ decodeShortMsg bytes =
       in case VS.length bytes of
           1     -> Just (ShortMsg chn msg ShortBytes0)
           2     -> Just (ShortMsg chn msg (ShortBytes1 (bytes VS.! 1)))
-          3     -> Just (ShortMsg chn msg (ShortBytes2 (bytes VS.! 2) (bytes VS.! 3)))
+          3     -> Just (ShortMsg chn msg (ShortBytes2 (bytes VS.! 1) (bytes VS.! 2)))
           _     -> Nothing
 
 encodeShortMsg :: ShortMsg -> VS.Vector Word8
