@@ -15,7 +15,7 @@ consumeQueueInput (QueueInputState queue _) handle = managedAsyncIO go where
     mayMsg <- atomically (readCQueue queue)
     case mayMsg of
       Nothing -> pure ()
-      Just msg -> runHandle handle msg
+      Just msg -> runHandle handle msg *> go
 
 produceOutput :: OutputState -> Handle OutputMsg
 produceOutput (OutputState dev) = newHandleIO go where
