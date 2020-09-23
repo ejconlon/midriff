@@ -1,5 +1,6 @@
 module Midriff.Connect
   ( InputState (..)
+  , InputCallback
   , InputMsg
   , InputQueue
   , QueueInputState (..)
@@ -16,8 +17,8 @@ module Midriff.Connect
   , manageOutputC
   ) where
 
-import Control.Exception (finally)
 import Control.Concurrent.STM (atomically)
+import Control.Exception (finally)
 import Control.Monad (void)
 import Control.Monad.IO.Class (MonadIO (..))
 import Control.Monad.Trans.Resource (MonadResource)
@@ -33,6 +34,7 @@ import Sound.RtMidi (InputDevice, OutputDevice, cancelCallback, closePort, creat
                      defaultOutput, ignoreTypes, openPort, openVirtualPort, sendMessage, setCallback)
 
 type InputCallback = Double -> VS.Vector Word8 -> IO ()
+type InputCloseCallback = IO ()
 type InputMsg = (Double, VS.Vector Word8)
 type InputQueue = CQueue (Double, VS.Vector Word8)
 type OutputMsg = VS.Vector Word8
@@ -42,7 +44,7 @@ internalInputCb cq fracSecs bytes = atomically (void (writeCQueue (fracSecs, byt
 
 data InputState = InputState
   { istDevice :: !InputDevice
-  , istCloseCb :: !(IO ())
+  , istCloseCb :: !InputCloseCallback
   }
 
 openInputDevice :: MonadIO m => Maybe DeviceConfig -> m InputDevice
@@ -58,7 +60,7 @@ openOutputDevice mpc = do
     Nothing -> defaultOutput
     Just (DeviceConfig api client) -> createOutput api client
 
-acquireInput :: InputConfig -> InputDevice -> InputCallback -> IO () -> IO InputState
+acquireInput :: InputConfig -> InputDevice -> InputCallback -> InputCloseCallback -> IO InputState
 acquireInput (InputConfig (PortConfig name pid) migs) dev cb closeCb = do
   -- Set our ignored message types
   case migs of
@@ -74,14 +76,14 @@ acquireInput (InputConfig (PortConfig name pid) migs) dev cb closeCb = do
 
 releaseInput :: InputState -> IO ()
 releaseInput (InputState dev closeCb) = do
-  -- Invoke the close callback but ensure we cleanup
-  finally closeCb $ do
+  -- Ensure we invoke the close callback last
+  flip finally closeCb $ do
     -- Close the port for input
     closePort dev
     -- Remove our callback
     cancelCallback dev
 
-manageInput :: InputConfig -> InputDevice -> InputCallback -> IO () -> Manager InputState
+manageInput :: InputConfig -> InputDevice -> InputCallback -> InputCloseCallback -> Manager InputState
 manageInput icfg dev cb closeCb = mkManager (acquireInput icfg dev cb closeCb) releaseInput
 
 data QueueInputState = QueueInputState

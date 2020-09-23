@@ -6,9 +6,9 @@ import Data.Conduit (ConduitT, runConduit, (.|))
 import Data.Conduit.List (sourceList)
 import qualified Data.Vector.Storable as VS
 import Data.Word (Word8)
+import LittleRIO (RIO, ResourceMap, runRIO, withResourceMap)
 import Midriff.Config (PortConfig (..), PortId (..))
 import Midriff.Connect (manageOutputC, openOutputDevice)
-import Midriff.Exe (MonadExe, runSimpleExe)
 import Midriff.Msg
 import Midriff.Process (encodeMsgC, msgDelayC)
 import Midriff.Resource (managedAsync)
@@ -27,7 +27,7 @@ songEvents =
 songC :: MonadIO m => ConduitT () (VS.Vector Word8) m ()
 songC = sourceList songEvents .| msgDelayC .| encodeMsgC
 
-program :: MonadExe m => m ()
+program :: RIO ResourceMap ()
 program = do
   outDev <- openOutputDevice Nothing
   api <- currentApi outDev
@@ -39,4 +39,4 @@ program = do
   liftIO (wait res)
 
 main :: IO ()
-main = runSimpleExe program
+main = withResourceMap (flip runRIO program)

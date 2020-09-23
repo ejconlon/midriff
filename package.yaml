@@ -26,6 +26,7 @@ dependencies:
 - stm >= 2.5.0.0 && < 3
 - unliftio-core >= 0.1.2.0 && < 1
 - unliftio >= 0.2.13 && < 1
+- unordered-containers >= 0.2.10.0 && < 1
 - vector >= 0.12.1.2 && < 1
 
 default-extensions:

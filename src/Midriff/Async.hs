@@ -3,7 +3,7 @@ module Midriff.Async where
 import Control.Concurrent.Async (Async)
 import Control.Concurrent.STM (atomically)
 import Control.Monad.Trans.Resource (MonadResource, ReleaseKey)
-import Midriff.Connect (InputMsg, QueueInputState (..), OutputMsg, OutputState (..))
+import Midriff.Connect (InputMsg, OutputMsg, OutputState (..), QueueInputState (..))
 import Midriff.CQueue (readCQueue)
 import Midriff.Handle (Handle, newHandleIO, runHandle)
 import Midriff.Resource (managedAsyncIO)
