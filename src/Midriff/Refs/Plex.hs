@@ -1,3 +1,5 @@
+{-# LANGUAGE UndecidableInstances #-}
+
 module Midriff.Refs.Plex
   ( Plex
   , newPlex
@@ -14,6 +16,7 @@ module Midriff.Refs.Plex
   , plexKeys
   ) where
 
+import Control.DeepSeq (NFData (..))
 import Control.Monad.IO.Class (MonadIO (..))
 import Control.Monad.IO.Unlift (MonadUnliftIO)
 import Control.Monad.Trans.Resource (MonadResource, ReleaseKey, release)
@@ -32,6 +35,9 @@ removeMapVal a m =
   in (m', v)
 
 newtype Plex r a b = Plex { unPlex :: r (HashMap a (ReleaseKey, b)) }
+
+instance NFData (r (HashMap a (ReleaseKey, b))) => NFData (Plex r a b) where
+  rnf = rnf . unPlex
 
 newPlex :: (NewRef r m, Functor m) => m (Plex r a b)
 newPlex = fmap Plex (newRef HM.empty)

@@ -12,6 +12,7 @@ module Midriff.Refs.XVar
   , splitXVar
   ) where
 
+import Control.DeepSeq (NFData)
 import Control.Monad (void, when)
 import Control.Monad.IO.Class (MonadIO (..))
 import Control.Monad.IO.Unlift (MonadUnliftIO)
@@ -23,7 +24,9 @@ import UnliftIO.MVar (MVar, modifyMVar, modifyMVar_, newMVar, putMVar, readMVar,
 -- All 'XVar' operations leave it with a value (unlike 'MVar').
 -- However, operations like 'lockXVarM' can /lock/ the 'XVar' and perform
 -- monadic effects, unlocking correctly on exceptions.
-newtype XVar a = XVar { unXVar :: MVar a } deriving (Eq)
+newtype XVar a = XVar { unXVar :: MVar a }
+  deriving stock (Eq)
+  deriving newtype (NFData)
 
 newXVar :: MonadIO m => a -> m (XVar a)
 newXVar = fmap XVar . newMVar

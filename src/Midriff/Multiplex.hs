@@ -49,7 +49,8 @@ data InPlexHandle a = InPlexHandle
   { iphInput :: !(a -> Double -> VS.Vector Word8 -> IO ())
   , iphOpen :: !(a -> IO ())
   , iphClose :: !(a -> IO ())
-  }
+  } deriving stock (Generic)
+    deriving anyclass (NFData)
 
 data InPlexResponseData =
     InPlexResponseInput !Double !(VS.Vector Word8)
@@ -68,7 +69,8 @@ data InPlexResponse a = InPlexResponse
 data InPlex a = InPlex
   { ipHandle :: !(InPlexHandle a)
   , ipPlex :: !(Plex XVar a InputState)
-  }
+  } deriving stock (Generic)
+    deriving anyclass (NFData)
 
 type InPlexResponseQueue a = CQueue (InPlexResponse a)
 
@@ -121,7 +123,7 @@ manageQueueInPlex cap = mkManager (newQueueInPlex cap) (\(q, ip) -> finally (inP
 -- | Note: Not thread-safe. This is to avoid having to lock every time we want to send a message.
 newtype OutPlex a = OutPlex
   { opPlex :: Plex IORef a OutputState
-  }
+  } deriving newtype (NFData)
 
 newOutPlex :: IO (OutPlex a)
 newOutPlex = fmap OutPlex newPlex
