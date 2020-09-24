@@ -64,7 +64,7 @@ plexLockedClose (Plex mref) a pre =
       Nothing -> pure (m, False)
       Just (rk, b) -> finally (pre b $> (m', True)) (release rk)
 
-plexUnlockedClose :: (ReadWriteRef r m, MonadUnliftIO m, Hashable a, Eq a) => Plex r a b -> a -> m Bool
+plexUnlockedClose :: (ReadWriteRef r m, MonadIO m, Hashable a, Eq a) => Plex r a b -> a -> m Bool
 plexUnlockedClose (Plex mref) a = do
   m <- readRef mref
   let (m', mrk) = removeMapVal a m

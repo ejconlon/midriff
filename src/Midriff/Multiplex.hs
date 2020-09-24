@@ -8,16 +8,17 @@ module Midriff.Multiplex
   , InPlex
   , inPlexOpen
   , inPlexClose
-  , inPlexIsOpen
-  , inPlexListOpen
+  , inPlexMember
+  , inPlexKeys
   , manageInPlex
   , manageQueueInPlex
   , OutPlex
   , outPlexOpen
-  , outPlexSend
   , outPlexClose
-  , outPlexIsOpen
-  , outPlexListOpen
+  , outPlexSend
+  , outPlexSendMany
+  , outPlexMember
+  , outPlexKeys
   , manageOutPlex
   ) where
 
@@ -26,22 +27,23 @@ import Control.DeepSeq (NFData)
 import Control.Monad (void)
 import Control.Monad.IO.Class (MonadIO (..))
 import Control.Monad.IO.Unlift (MonadUnliftIO)
-import Control.Monad.Trans.Resource (MonadResource, ReleaseKey, release)
+import Control.Monad.Trans.Resource (MonadResource)
+import Data.Foldable (for_)
 import Data.Functor (($>))
 import Data.Hashable (Hashable)
-import Data.HashMap.Strict (HashMap)
-import qualified Data.HashMap.Strict as HM
 import qualified Data.Vector.Storable as VS
 import Data.Word (Word8)
 import GHC.Generics (Generic)
 import Midriff.Config (InputConfig, PortConfig)
-import Midriff.Connect (OutputState (..), manageInput, manageOutput)
+import Midriff.Connect (InputState, OutputState (..), manageInput, manageOutput)
 import Midriff.CQueue (CQueue, closeCQueue, newCQueue, writeCQueue)
-import Midriff.Resource (Manager, managedAllocate, mkManager)
+import Midriff.Refs.Plex (Plex, newPlex, plexKeys, plexLockedClose, plexLockedCloseAll, plexLockedOpen, plexMember,
+                          plexUnlockedClose, plexUnlockedCloseAll, plexUnlockedLookup, plexUnlockedOpen)
+import Midriff.Refs.XVar (XVar)
+import Midriff.Resource (Manager, mkManager)
 import Sound.RtMidi (InputDevice, OutputDevice, sendMessage)
-import UnliftIO.Exception (finally, onException)
-import UnliftIO.IORef (IORef, newIORef, readIORef, writeIORef)
-import UnliftIO.MVar (MVar, newMVar, putMVar, takeMVar, withMVar)
+import UnliftIO.Exception (finally)
+import UnliftIO.IORef (IORef)
 
 data InPlexHandle a = InPlexHandle
   { iphInput :: !(a -> Double -> VS.Vector Word8 -> IO ())
@@ -65,7 +67,7 @@ data InPlexResponse a = InPlexResponse
 -- | Thread-safe. Locks on operations and keeps locks for open/close callbacks.
 data InPlex a = InPlex
   { ipHandle :: !(InPlexHandle a)
-  , ipMap :: !(MVar (HashMap a ReleaseKey))
+  , ipPlex :: !(Plex XVar a InputState)
   }
 
 type InPlexResponseQueue a = CQueue (InPlexResponse a)
@@ -80,61 +82,35 @@ inPlexResponseQueueHandle queue =
       , iphClose = onMsg InPlexResponseClose
       }
 
-removeMapVal :: (Hashable a, Eq a) => a -> HashMap a b -> (HashMap a b, Maybe b)
-removeMapVal a m =
-  let v = HM.lookup a m
-      m' = case v of { Nothing -> m; Just _ -> HM.delete a m }
-  in (m', v)
-
 newInPlex :: InPlexHandle a -> IO (InPlex a)
-newInPlex handle = fmap (InPlex handle) (newMVar HM.empty)
+newInPlex handle = fmap (InPlex handle) newPlex
 
 newQueueInPlex :: Int -> IO (InPlexResponseQueue a, InPlex a)
 newQueueInPlex cap = do
   queue <- atomically (newCQueue cap)
-  mref <- newMVar HM.empty
   let handle = inPlexResponseQueueHandle queue
-      ip = InPlex handle mref
+  ip <- newInPlex handle
   pure (queue, ip)
 
 inPlexOpen :: (MonadResource m, MonadUnliftIO m, Hashable a, Eq a) => InPlex a -> a -> InputConfig -> InputDevice -> m Bool
-inPlexOpen (InPlex handle mref) a icfg dev = do
+inPlexOpen (InPlex handle plex) a icfg dev = do
   let cb = iphInput handle a
+      openCb = iphOpen handle a
       closeCb = iphClose handle a
-  m <- liftIO (takeMVar mref)
-  if HM.member a m
-    then liftIO (putMVar mref m) $> False
-    else flip onException (putMVar mref m) $ do
-      (rk, _) <- managedAllocate (manageInput icfg dev cb closeCb)
-      onException (liftIO (iphOpen handle a)) (release rk)
-      putMVar mref (HM.insert a rk m)
-      pure True
+      man = manageInput icfg dev cb closeCb
+  plexLockedOpen plex a man (const (liftIO openCb))
 
-inPlexIsOpen :: (MonadUnliftIO m, Hashable a, Eq a) => InPlex a -> a -> m Bool
-inPlexIsOpen (InPlex _ mref) a = withMVar mref (pure . HM.member a)
+inPlexMember :: (MonadIO m, Hashable a, Eq a) => InPlex a -> a -> m Bool
+inPlexMember (InPlex _ plex) = plexMember plex
 
-inPlexListOpen :: MonadUnliftIO m => InPlex a -> m [a]
-inPlexListOpen (InPlex _ mref) = withMVar mref (pure . HM.keys)
+inPlexKeys :: MonadIO m => InPlex a -> m [a]
+inPlexKeys (InPlex _ plex) = plexKeys plex
 
-inPlexClose :: (MonadResource m, Hashable a, Eq a) => InPlex a -> a -> m Bool
-inPlexClose (InPlex _ mref) a = do
-  m <- liftIO (takeMVar mref)
-  let (m', mrk) = removeMapVal a m
-  case mrk of
-    Nothing -> liftIO (putMVar mref m') $> False
-    Just rk ->
-      liftIO (finally (release rk $> True) (putMVar mref m'))
+inPlexClose :: (MonadUnliftIO m, Hashable a, Eq a) => InPlex a -> a -> m Bool
+inPlexClose (InPlex _ plex) a = plexLockedClose plex a (const (pure ()))
 
-releaseAll :: [ReleaseKey] -> IO ()
-releaseAll rks =
-  case rks of
-    [] -> pure ()
-    (rk:rks') -> finally (release rk) (releaseAll rks')
-
-inPlexCloseAll :: MonadIO m => InPlex a -> m ()
-inPlexCloseAll (InPlex _ mref) = liftIO $ do
-  m <- takeMVar mref
-  finally (releaseAll (HM.elems m)) (putMVar mref HM.empty)
+inPlexCloseAll :: InPlex a -> IO ()
+inPlexCloseAll (InPlex _ plex) = plexLockedCloseAll plex
 
 manageInPlex :: InPlexHandle a -> Manager (InPlex a)
 manageInPlex handle = mkManager (newInPlex handle) inPlexCloseAll
@@ -144,48 +120,42 @@ manageQueueInPlex cap = mkManager (newQueueInPlex cap) (\(q, ip) -> finally (inP
 
 -- | Note: Not thread-safe. This is to avoid having to lock every time we want to send a message.
 newtype OutPlex a = OutPlex
-  { opMap :: IORef (HashMap a (ReleaseKey, OutputState))
+  { opPlex :: Plex IORef a OutputState
   }
 
 newOutPlex :: IO (OutPlex a)
-newOutPlex = fmap OutPlex (newIORef HM.empty)
+newOutPlex = fmap OutPlex newPlex
 
-outPlexOpen :: (MonadResource m, Hashable a, Eq a) => OutPlex a -> a -> PortConfig -> OutputDevice -> m Bool
-outPlexOpen (OutPlex mref) a pcfg dev = do
-  m <- readIORef mref
-  if HM.member a m
-    then pure False
-    else  do
-      (rk, os) <- managedAllocate (manageOutput pcfg dev)
-      writeIORef mref (HM.insert a (rk, os) m)
-      pure True
+outPlexOpen :: (MonadResource m, Hashable a, Eq a) => OutPlex a -> a -> PortConfig -> OutputDevice -> m (Maybe OutputState)
+outPlexOpen (OutPlex plex) a pcfg dev = do
+  let man = manageOutput pcfg dev
+  plexUnlockedOpen plex a man
 
 outPlexClose :: (MonadIO m, Hashable a, Eq a) => OutPlex a -> a -> m Bool
-outPlexClose (OutPlex mref) a = do
-  m <- readIORef mref
-  let (m', mrk) = removeMapVal a m
-  case mrk of
-    Nothing -> pure False
-    Just (rk, _) ->
-      liftIO (finally (release rk $> True) (writeIORef mref m'))
+outPlexClose (OutPlex plex) = plexUnlockedClose plex
 
-outPlexIsOpen :: (MonadIO m, Hashable a, Eq a) => OutPlex a -> a -> m Bool
-outPlexIsOpen (OutPlex mref) a = fmap (HM.member a) (readIORef mref)
+outPlexMember :: (MonadIO m, Hashable a, Eq a) => OutPlex a -> a -> m Bool
+outPlexMember (OutPlex plex) = plexMember plex
 
-outPlexListOpen :: MonadIO m => OutPlex a -> m [a]
-outPlexListOpen (OutPlex mref) = fmap HM.keys (readIORef mref)
+outPlexKeys :: MonadIO m => OutPlex a -> m [a]
+outPlexKeys (OutPlex plex) = plexKeys plex
 
 outPlexSend :: (MonadIO m, Hashable a, Eq a) => OutPlex a -> a -> VS.Vector Word8 -> m Bool
-outPlexSend (OutPlex mref) a bytes = do
-  m <- readIORef mref
-  case HM.lookup a m of
+outPlexSend (OutPlex plex) a bytes = do
+  mos <- plexUnlockedLookup plex a
+  case mos of
     Nothing -> pure False
-    Just (_, OutputState dev) -> sendMessage dev bytes $> True
+    Just (OutputState dev) -> sendMessage dev bytes $> True
+
+outPlexSendMany :: (MonadIO m, Hashable a, Eq a, Foldable f) => OutPlex a -> a -> f (VS.Vector Word8) -> m Bool
+outPlexSendMany (OutPlex plex) a msgs = do
+  mos <- plexUnlockedLookup plex a
+  case mos of
+    Nothing -> pure False
+    Just (OutputState dev) -> for_ msgs (sendMessage dev) $> True
 
 outPlexCloseAll :: OutPlex a -> IO ()
-outPlexCloseAll (OutPlex mref) = do
-  m <- readIORef mref
-  finally (releaseAll (fmap fst (HM.elems m))) (writeIORef mref HM.empty)
+outPlexCloseAll (OutPlex plex) = plexUnlockedCloseAll plex
 
 manageOutPlex :: Manager (OutPlex a)
 manageOutPlex = mkManager newOutPlex outPlexCloseAll
