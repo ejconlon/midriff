@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: d2a28ee0be657d80929e8eed80056356bce945038b6ad8f5c7c44210439b7f4f
+-- hash: 648e1ee5ab259a92c6788cc881d2d44a3569499b7ea6e26b64ed20ce51444993
 
 name:           midriff
 version:        0.1.0
@@ -35,6 +35,9 @@ library
       Midriff.Msg
       Midriff.Multiplex
       Midriff.Process
+      Midriff.Refs.Classes
+      Midriff.Refs.Plex
+      Midriff.Refs.XVar
       Midriff.Resource
       Midriff.TEvent
       Midriff.Time
