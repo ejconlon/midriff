@@ -1,8 +1,20 @@
 module Midriff.Refs.Plex
   ( Plex
   , newPlex
+  , plexLockedOpen
+  , plexLockedClose
+  , plexLockedWith
+  , plexLockedLookup
+  , plexLockedCloseAll
+  , plexUnlockedOpen
+  , plexUnlockedClose
+  , plexUnlockedLookup
+  , plexUnlockedCloseAll
+  , plexMember
+  , plexKeys
   ) where
 
+import Control.Monad.IO.Class (MonadIO (..))
 import Control.Monad.IO.Unlift (MonadUnliftIO)
 import Control.Monad.Trans.Resource (MonadResource, ReleaseKey, release)
 import Data.Functor (($>))
@@ -52,9 +64,6 @@ plexLockedClose (Plex mref) a pre =
       Nothing -> pure (m, False)
       Just (rk, b) -> finally (pre b $> (m', True)) (release rk)
 
-plexLockedWith :: LockRef r m => Plex r a b -> m c -> m c
-plexLockedWith (Plex mref) = withLockRef mref . const
-
 plexUnlockedClose :: (ReadWriteRef r m, MonadUnliftIO m, Hashable a, Eq a) => Plex r a b -> a -> m Bool
 plexUnlockedClose (Plex mref) a = do
   m <- readRef mref
@@ -65,3 +74,43 @@ plexUnlockedClose (Plex mref) a = do
       release rk
       writeRef mref m'
       pure True
+
+releaseAll :: [ReleaseKey] -> IO ()
+releaseAll rks =
+  case rks of
+    [] -> pure ()
+    (rk:rks') -> finally (release rk) (releaseAll rks')
+
+plexLockedCloseAll :: (LockRef r m, MonadIO m) => Plex r a b -> m ()
+plexLockedCloseAll (Plex mref) =
+  modifyLockRef_ mref $ \m ->
+    let elems = HM.elems m
+        rks = fmap fst elems
+    in liftIO (releaseAll rks) $> HM.empty
+
+plexUnlockedCloseAll :: (ReadWriteRef r m, MonadIO m) => Plex r a b -> m ()
+plexUnlockedCloseAll (Plex mref) = do
+  m <- readRef mref
+  let elems = HM.elems m
+      rks = fmap fst elems
+  liftIO (releaseAll rks)
+  writeRef mref HM.empty
+
+plexLockedWith :: LockRef r m => Plex r a b -> m c -> m c
+plexLockedWith (Plex mref) = withLockRef mref . const
+
+plexLockedLookup :: (LockRef r m, Applicative m, Hashable a, Eq a) => Plex r a b -> a -> (b -> m c) -> m (Maybe c)
+plexLockedLookup (Plex mref) a f =
+  withLockRef mref $ \m ->
+    case HM.lookup a m of
+      Nothing -> pure Nothing
+      Just (_, b) -> fmap Just (f b)
+
+plexUnlockedLookup :: (ReadWriteRef r m, Functor m, Hashable a, Eq a) => Plex r a b -> a -> m (Maybe b)
+plexUnlockedLookup (Plex mref) a = fmap (fmap snd . HM.lookup a) (readRef mref)
+
+plexMember :: (ReadWriteRef r m, Functor m, Hashable a, Eq a) => Plex r a b -> a -> m Bool
+plexMember (Plex mref) a = fmap (HM.member a) (readRef mref)
+
+plexKeys :: (ReadWriteRef r m, Functor m) => Plex r a b -> m [a]
+plexKeys (Plex mref) = fmap HM.keys (readRef mref)
