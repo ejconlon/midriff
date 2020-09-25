@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 648e1ee5ab259a92c6788cc881d2d44a3569499b7ea6e26b64ed20ce51444993
+-- hash: b29c499e2d5aaddafd34b08d198db2ac0f3a8fa7c548d18ba611759a87b24d57
 
 name:           midriff
 version:        0.1.0
@@ -41,6 +41,7 @@ library
       Midriff.Resource
       Midriff.TEvent
       Midriff.Time
+      Midriff.Word
   other-modules:
       Paths_midriff
   hs-source-dirs:
