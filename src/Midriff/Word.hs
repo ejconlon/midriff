@@ -1,13 +1,14 @@
 {-# LANGUAGE DeriveAnyClass #-}
 
+-- | Note that this module exports constructors for 'Word7' and 'Word14' but they're not
+-- always safe to use! They're only there to allow you to 'coerce' when you know it's safe.
+-- Otherwise use 'fromIntegral' to ensure the values are brought into range.
 module Midriff.Word
   ( msbSplitWord8
   , lsbSplitWord8
   , joinSplitWord8
-  , Word7
-  , getWord7
-  , Word14
-  , getWord14
+  , Word7 (..)
+  , Word14 (..)
   , msbWord14
   , lsbWord14
   , joinWord14
@@ -15,6 +16,7 @@ module Midriff.Word
 
 import Control.DeepSeq (NFData)
 import Data.Bits (Bits (..))
+import Data.Hashable (Hashable)
 import Data.Word (Word16, Word8)
 import GHC.Generics (Generic)
 
@@ -36,7 +38,7 @@ joinSplitWord8 msb lsb = makeWord8 (shiftL (extractWord7 msb) 7 .|. extractWord7
 newtype Word7 = Word7 { getWord7 :: Word8 }
   deriving stock (Generic)
   deriving newtype (Enum, Eq, Ord, Integral, Real, Bits)
-  deriving anyclass (NFData)
+  deriving anyclass (NFData, Hashable)
 
 makeWord7 :: Integer -> Word7
 makeWord7 i = Word7 (fromInteger (mod i 128))
@@ -63,7 +65,7 @@ instance Show Word7 where
 newtype Word14 = Word14 { getWord14 :: Word16 }
   deriving stock (Generic)
   deriving newtype (Enum, Eq, Ord, Integral, Real, Bits)
-  deriving anyclass (NFData)
+  deriving anyclass (NFData, Hashable)
 
 msbWord14 :: Word14 -> Word7
 msbWord14 w = makeWord7 (shiftR (extractWord14 w) 7)

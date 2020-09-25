@@ -33,43 +33,44 @@ import qualified Data.Vector.Storable as VS
 import Data.Word (Word8)
 import GHC.Generics (Generic)
 import Midriff.Time (TimeDelta, timeDeltaFromFracSecs)
+import Midriff.Word (Word7 (..))
 
-newtype Channel = Channel { unChannel :: Int }
+newtype Channel = Channel { unChannel :: Word7 }
   deriving stock (Eq, Show, Generic)
   deriving newtype (Num)
   deriving anyclass (NFData, Hashable)
 
-newtype Note = Note { unNote :: Int }
+newtype Note = Note { unNote :: Word7 }
   deriving stock (Eq, Show, Generic)
   deriving newtype (Num)
   deriving anyclass (NFData, Hashable)
 
-newtype Velocity = Velocity { unVelocity :: Int }
+newtype Velocity = Velocity { unVelocity :: Word7 }
   deriving stock (Eq, Show, Generic)
   deriving newtype (Num)
   deriving anyclass (NFData, Hashable)
 
-newtype ControlNum = ControlNum { unControlNum :: Int }
+newtype ControlNum = ControlNum { unControlNum :: Word7 }
   deriving stock (Eq, Show, Generic)
   deriving newtype (Num)
   deriving anyclass (NFData, Hashable)
 
-newtype ControlVal = ControlVal { unControlVal :: Int }
+newtype ControlVal = ControlVal { unControlVal :: Word7 }
   deriving stock (Eq, Show, Generic)
   deriving newtype (Num)
   deriving anyclass (NFData, Hashable)
 
-newtype Pressure = Pressure { unPressure :: Int }
+newtype Pressure = Pressure { unPressure :: Word7 }
   deriving stock (Eq, Show, Generic)
   deriving newtype (Num)
   deriving anyclass (NFData, Hashable)
 
-newtype ProgramNum = ProgramNum { unProgramNum :: Int }
+newtype ProgramNum = ProgramNum { unProgramNum :: Word7 }
   deriving stock (Eq, Show, Generic)
   deriving newtype (Num)
   deriving anyclass (NFData, Hashable)
 
-newtype PitchBend = PitchBend { unPitchBend :: Int }
+newtype PitchBend = PitchBend { unPitchBend :: Word7 }
   deriving stock (Eq, Show, Generic)
   deriving newtype (Num)
   deriving anyclass (NFData, Hashable)
@@ -99,8 +100,8 @@ data ChanVoiceMsg =
 -- https://www.midi.org/specifications/item/table-1-summary-of-midi-message
 data MidiParsed =
     MidiChanVoice !ChanVoiceMsg
-  | MidiSongPosition !Int
-  | MidiSongSelect !Int
+  | MidiSongPosition !Word7
+  | MidiSongSelect !Word7
   | MidiTuneRequest
   | MidiSRTClock
   | MidiSRTStart
@@ -124,12 +125,11 @@ data MidiEvent =
 
 decodeShortMsgParsed :: ShortMsg -> Maybe MidiParsed
 decodeShortMsgParsed (ShortMsg chn msg bs) =
-  let bs' = convertShortBytes bs
-  in if msg < 15
-    then fmap (MidiChanVoice . ChanVoiceMsg (fromIntegral chn)) (decodeChanVoice msg bs')
-    else decodeOther chn bs'
+  if msg < 15
+    then fmap (MidiChanVoice . ChanVoiceMsg (fromIntegral chn)) (decodeChanVoice msg bs)
+    else decodeOther chn bs
 
-decodeChanVoice :: Word8 -> ShortBytes Int -> Maybe ChanVoiceMsgData
+decodeChanVoice :: Word7 -> ShortBytes -> Maybe ChanVoiceMsgData
 decodeChanVoice msg bs = case (msg, bs) of
    (8,  ShortBytes2 k _) -> Just (ChanVoiceNoteOnOff (coerce k) 0)
    (9,  ShortBytes2 k v) -> Just (ChanVoiceNoteOnOff (coerce k) (coerce v))
@@ -140,7 +140,7 @@ decodeChanVoice msg bs = case (msg, bs) of
    (14, ShortBytes2 k v) -> Just (ChanVoicePitchWheel (coerce (k + shiftL v 7 - 8192)))
    _ -> Nothing
 
-decodeOther :: Word8 -> ShortBytes Int -> Maybe MidiParsed
+decodeOther :: Word7 -> ShortBytes -> Maybe MidiParsed
 decodeOther lo bs = case (lo, bs) of
   -- TODO(ejconlon) parse timecode quarter frame (msg 1)
   (2, ShortBytes2 a b) -> Just (MidiSongPosition (a + shiftL b 7))
@@ -157,47 +157,34 @@ decodeOther lo bs = case (lo, bs) of
 encodeShortMsgParsed :: MidiParsed -> ShortMsg
 encodeShortMsgParsed (MidiChanVoice (ChanVoiceMsg (coerce -> chn) msg')) =
   case msg' of
-    ChanVoiceNoteOnOff k v       -> mkShortMsg chn  9 (ShortBytes2 (coerce k) (coerce v))
-    ChanVoicePolyAftertouch k v  -> mkShortMsg chn 10 (ShortBytes2 (coerce k) (coerce v))
-    ChanVoiceCC k v              -> mkShortMsg chn 11 (ShortBytes2 (coerce k) (coerce v))
-    ChanVoiceProgramChange k     -> mkShortMsg chn 12 (ShortBytes1 (coerce k))
-    ChanVoiceAftertouch k        -> mkShortMsg chn 13 (ShortBytes1 (coerce k))
-    ChanVoicePitchWheel n        -> let m = min 16383 (max 0 (coerce n + 8192)) in mkShortMsg chn 14 (ShortBytes2 (m .&. 127) (shiftR m 7))
+    ChanVoiceNoteOnOff k v       -> ShortMsg chn  9 (ShortBytes2 (coerce k) (coerce v))
+    ChanVoicePolyAftertouch k v  -> ShortMsg chn 10 (ShortBytes2 (coerce k) (coerce v))
+    ChanVoiceCC k v              -> ShortMsg chn 11 (ShortBytes2 (coerce k) (coerce v))
+    ChanVoiceProgramChange k     -> ShortMsg chn 12 (ShortBytes1 (coerce k))
+    ChanVoiceAftertouch k        -> ShortMsg chn 13 (ShortBytes1 (coerce k))
+    ChanVoicePitchWheel n        -> let m = min 16383 (max 0 (coerce n + 8192)) in ShortMsg chn 14 (ShortBytes2 (m .&. 127) (shiftR m 7))
 
-encodeShortMsgParsed (MidiSongPosition p) = mkShortMsg 15  3 (ShortBytes2 (p .&. 7) (shiftR p 7))
-encodeShortMsgParsed (MidiSongSelect   s) = mkShortMsg 15  3 (ShortBytes1 s)
-encodeShortMsgParsed  MidiTuneRequest     = mkShortMsg 15  6 ShortBytes0
-encodeShortMsgParsed  MidiSRTClock        = mkShortMsg 15  8 ShortBytes0
-encodeShortMsgParsed  MidiSRTStart        = mkShortMsg 15 10 ShortBytes0
-encodeShortMsgParsed  MidiSRTContinue     = mkShortMsg 15 11 ShortBytes0
-encodeShortMsgParsed  MidiSRTStop         = mkShortMsg 15 12 ShortBytes0
-encodeShortMsgParsed  MidiActiveSensing   = mkShortMsg 15 14 ShortBytes0
-encodeShortMsgParsed  MidiReset           = mkShortMsg 15 15 ShortBytes0
+encodeShortMsgParsed (MidiSongPosition p) = ShortMsg 15  3 (ShortBytes2 (p .&. 7) (shiftR p 7))
+encodeShortMsgParsed (MidiSongSelect   s) = ShortMsg 15  3 (ShortBytes1 s)
+encodeShortMsgParsed  MidiTuneRequest     = ShortMsg 15  6 ShortBytes0
+encodeShortMsgParsed  MidiSRTClock        = ShortMsg 15  8 ShortBytes0
+encodeShortMsgParsed  MidiSRTStart        = ShortMsg 15 10 ShortBytes0
+encodeShortMsgParsed  MidiSRTContinue     = ShortMsg 15 11 ShortBytes0
+encodeShortMsgParsed  MidiSRTStop         = ShortMsg 15 12 ShortBytes0
+encodeShortMsgParsed  MidiActiveSensing   = ShortMsg 15 14 ShortBytes0
+encodeShortMsgParsed  MidiReset           = ShortMsg 15 15 ShortBytes0
 
-mkShortMsg :: Int -> Int -> ShortBytes Int -> ShortMsg
-mkShortMsg chn msg bs =
-  ShortMsg (fromIntegral chn) (fromIntegral msg) (convertShortBytes bs)
-
-data ShortBytes a =
+data ShortBytes =
     ShortBytes0
-  | ShortBytes1 !a
-  | ShortBytes2 !a !a
-  deriving stock (Eq, Show, Generic)
-  deriving anyclass (NFData)
-
-convertShortBytes :: (Integral a, Num b) => ShortBytes a -> ShortBytes b
-convertShortBytes bs =
-  case bs of
-    ShortBytes0 -> ShortBytes0
-    ShortBytes1 x -> ShortBytes1 (fromIntegral x)
-    ShortBytes2 x y -> ShortBytes2 (fromIntegral x) (fromIntegral y)
+  | ShortBytes1 !Word7
+  | ShortBytes2 !Word7 !Word7
+  deriving stock (Eq, Show)
 
 data ShortMsg = ShortMsg
-  { smChannel :: !Word8
-  , smMsg     :: !Word8
-  , smBytes   :: !(ShortBytes Word8)
-  } deriving stock (Eq, Show, Generic)
-    deriving anyclass (NFData)
+  { smChannel :: !Word7
+  , smMsg     :: !Word7
+  , smBytes   :: !ShortBytes
+  } deriving stock (Eq, Show)
 
 isShortFrame :: VS.Vector Word8 -> Bool
 isShortFrame bytes = not (VS.null bytes) && VS.head bytes /= 0xf0
@@ -211,22 +198,22 @@ decodeShortMsg bytes =
   if VS.null bytes
     then Nothing
     else
-      let cmd = VS.head bytes
+      let cmd = coerce (VS.head bytes)
           chn = cmd .&. 15
           msg = shiftR cmd 4
       in case VS.length bytes of
           1     -> Just (ShortMsg chn msg ShortBytes0)
-          2     -> Just (ShortMsg chn msg (ShortBytes1 (bytes VS.! 1)))
-          3     -> Just (ShortMsg chn msg (ShortBytes2 (bytes VS.! 1) (bytes VS.! 2)))
+          2     -> Just (ShortMsg chn msg (ShortBytes1 (coerce (bytes VS.! 1))))
+          3     -> Just (ShortMsg chn msg (ShortBytes2 (coerce (bytes VS.! 1)) (coerce (bytes VS.! 2))))
           _     -> Nothing
 
 encodeShortMsg :: ShortMsg -> VS.Vector Word8
 encodeShortMsg (ShortMsg chn msg bs) = VS.fromList bytes where
-  cmd = (chn .&. 15) .|. shiftL msg 4
+  cmd = coerce ((chn .&. 15) .|. shiftL msg 4)
   bytes = case bs of
         ShortBytes0 -> [cmd]
-        ShortBytes1 a -> [cmd, a]
-        ShortBytes2 a b -> [cmd, a, b]
+        ShortBytes1 a -> [cmd, coerce a]
+        ShortBytes2 a b -> [cmd, coerce a, coerce b]
 
 decodeMsg :: VS.Vector Word8 -> MidiMsg
 decodeMsg bytes = maybe (UnparsedMidiMsg bytes) ParsedMidiMsg res where
