@@ -1,11 +1,14 @@
 module Midriff.Handle
   ( Handle
+  , contramapIO
+  , contramapM
   , forHandle
   , newHandle
   , newHandleIO
   , runHandle
   ) where
 
+import Control.Monad ((>=>))
 import Control.Monad.IO.Class (MonadIO (..))
 import Control.Monad.IO.Unlift (MonadUnliftIO, askRunInIO)
 import Data.Foldable (for_)
@@ -22,6 +25,12 @@ instance Monoid (Handle a) where
 
 instance Contravariant Handle where
   contramap f (Handle h) = Handle (h . f)
+
+contramapM :: MonadUnliftIO m => (a -> m b) -> Handle b -> m (Handle a)
+contramapM f (Handle h) = fmap (\r -> Handle (r . f >=> h)) askRunInIO
+
+contramapIO :: (a -> IO b) -> Handle b -> Handle a
+contramapIO f (Handle h) = Handle (f >=> h)
 
 forHandle :: Foldable f => (a -> f b) -> Handle b -> Handle a
 forHandle f (Handle h) = Handle (\a -> for_ (f a) h)
