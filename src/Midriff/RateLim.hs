@@ -22,21 +22,16 @@ data RateLim a = RateLim
   } deriving stock (Eq, Generic)
     deriving anyclass (NFData)
 
-writeRateLim :: (MonadIO m, Show a) => RateLim a -> a -> m WriteResult
-writeRateLim (RateLim cq _) a = liftIO $ do
-  putStr "WRITING "
-  print a
-  atomically (writeCQueue a cq)
+writeRateLim :: MonadIO m => RateLim a -> a -> m WriteResult
+writeRateLim (RateLim cq _) a = liftIO (atomically (writeCQueue a cq))
 
 closeRateLim :: MonadIO m => RateLim a -> m ()
 closeRateLim (RateLim cq _) = liftIO (atomically (closeCQueue cq))
 
-readRateLim :: MonadIO m => Show a => RateLim a -> Handle (QueueEvent a) -> m ()
+readRateLim :: MonadIO m => RateLim a -> Handle (QueueEvent a) -> m ()
 readRateLim (RateLim cq period) f = liftIO $ loop (0 :: Int) minBound where
   loop !n lastTime = do
     m <- atomically (readCQueue cq)
-    putStr "READING "
-    print m
     case m of
       Nothing -> pure ()
       Just (i, a) -> do
