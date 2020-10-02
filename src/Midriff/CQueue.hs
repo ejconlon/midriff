@@ -2,6 +2,7 @@
 
 module Midriff.CQueue
   ( CQueue
+  , QueueEvent (..)
   , WriteResult (..)
   , newCQueue
   , newMaxCQueue
@@ -70,14 +71,21 @@ writeCQueue val (CQueue q e) = do
     then pure ClosedResult
     else fmap (\b -> if b then DroppedResult else OkResult) (writeDQueue val q)
 
-sourceCQueue :: MonadIO m => CQueue a -> ConduitT () (Int, a) m ()
-sourceCQueue cq = loop where
-  loop = do
+data QueueEvent a = QueueEvent
+  { qeNum :: !Int
+  , qeDropped :: !Int
+  , qeVal :: !a
+  } deriving stock (Eq, Show, Generic)
+    deriving anyclass (NFData)
+
+sourceCQueue :: MonadIO m => CQueue a -> ConduitT () (QueueEvent a) m ()
+sourceCQueue cq = loop (0 :: Int) where
+  loop !n = do
     mval <- liftIO (atomically (readCQueue cq))
     case mval of
-      Just val -> do
-        yield val
-        loop
+      Just (d, v) -> do
+        yield (QueueEvent n d v)
+        loop (succ n)
       Nothing -> pure ()
 
 sinkCQueue :: MonadIO m => CQueue a -> ConduitT a WriteResult m ()

@@ -30,6 +30,7 @@ dependencies:
 - vector >= 0.12.1.2 && < 1
 
 default-extensions:
+  - BangPatterns
   - ConstraintKinds
   - DeriveFunctor
   - DeriveFoldable

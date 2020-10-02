@@ -24,7 +24,7 @@ module Midriff.Connect
 import Control.Concurrent.Async (Async, async, cancel)
 import Control.Concurrent.STM (atomically)
 import Control.Exception (finally)
-import Control.Monad (void, when)
+import Control.Monad (void)
 import Control.Monad.IO.Class (MonadIO (..))
 import Control.Monad.Trans.Resource (MonadResource, ReleaseKey)
 import Data.Conduit (ConduitT, await)
@@ -32,7 +32,7 @@ import qualified Data.Vector.Storable as VS
 import Data.Void (Void)
 import Data.Word (Word8)
 import Midriff.Config (DeviceConfig (..), Ignores (..), InputConfig (..), PortConfig (..), PortId (..))
-import Midriff.CQueue (CQueue, closeCQueue, newCQueue, readCQueue, sourceCQueue, writeCQueue)
+import Midriff.CQueue (CQueue, QueueEvent (..), closeCQueue, newCQueue, readCQueue, sourceCQueue, writeCQueue)
 import Midriff.Handle (Handle, newHandleIO, runHandle)
 import Midriff.RateLim (RateLim, closeRateLim, newRateLim, readRateLim, writeRateLim)
 import Midriff.Resource (Manager, managedAsyncIO, managedConduit, mkManager)
@@ -112,10 +112,10 @@ releaseQueueInput = releaseInput . qisInputState
 manageQueueInput :: InputConfig -> InputDevice -> Int -> Manager QueueInputState
 manageQueueInput icfg dev cap = mkManager (acquireQueueInput icfg dev cap) releaseQueueInput
 
-queueInputC :: MonadIO m => QueueInputState -> ConduitT () (Int, InputMsg) m ()
+queueInputC :: MonadIO m => QueueInputState -> ConduitT () (QueueEvent InputMsg) m ()
 queueInputC (QueueInputState cq _) = sourceCQueue cq
 
-manageQueueInputC :: MonadResource m => InputConfig -> InputDevice -> Int -> ConduitT () (Int, InputMsg) m ()
+manageQueueInputC :: MonadResource m => InputConfig -> InputDevice -> Int -> ConduitT () (QueueEvent InputMsg) m ()
 manageQueueInputC icfg dev cap = managedConduit (manageQueueInput icfg dev cap) queueInputC
 
 consumeQueueInput :: MonadResource m => QueueInputState -> Handle (Int, InputMsg) -> m (ReleaseKey, Async ())
@@ -165,19 +165,20 @@ data DelayedOutputState = DelayedOutputState
   , dosOutputState :: !OutputState
   }
 
-acquireDelayedOutput :: PortConfig -> OutputDevice -> Int -> TimeDelta -> (Int -> IO ()) -> IO DelayedOutputState
-acquireDelayedOutput cfg dev cap period miss = do
+acquireDelayedOutput :: PortConfig -> OutputDevice -> Int -> TimeDelta -> Handle (QueueEvent OutputMsg) -> IO DelayedOutputState
+acquireDelayedOutput cfg dev cap period preSend = do
   os <- acquireOutput cfg dev
   rl <- newRateLim cap period
-  as <- async (readRateLim rl (\i a -> when (i > 0) (miss i) *> sendMessage dev a))
+  let send = newHandleIO (\(QueueEvent _ _ a) -> sendMessage dev a)
+  as <- async (readRateLim rl (preSend <> send))
   pure (DelayedOutputState as rl os)
 
 releaseDelayedOutput :: DelayedOutputState -> IO ()
 releaseDelayedOutput (DelayedOutputState as rl os) =
   finally (closeRateLim rl) (finally (cancel as) (releaseOutput os))
 
-manageDelayedOutput :: PortConfig -> OutputDevice -> Int -> TimeDelta -> (Int -> IO ()) -> Manager DelayedOutputState
-manageDelayedOutput cfg dev cap period miss = mkManager (acquireDelayedOutput cfg dev cap period miss) releaseDelayedOutput
+manageDelayedOutput :: PortConfig -> OutputDevice -> Int -> TimeDelta -> Handle (QueueEvent OutputMsg) -> Manager DelayedOutputState
+manageDelayedOutput cfg dev cap period preSend = mkManager (acquireDelayedOutput cfg dev cap period preSend) releaseDelayedOutput
 
 produceDelayedOutput :: DelayedOutputState -> Handle OutputMsg
 produceDelayedOutput (DelayedOutputState _ rl _) = newHandleIO (void . writeRateLim rl)

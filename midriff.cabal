@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 4c93f7e130e5148c4b4e7d40a24c37e6e88a9450c83e350ed71e179909878fb3
+-- hash: 763c5843a4e10e1e03d21e44c3f1c736c0fcdd87c23b440e151413b23951cea7
 
 name:           midriff
 version:        0.1.0
@@ -47,7 +47,7 @@ library
       Paths_midriff
   hs-source-dirs:
       src
-  default-extensions: ConstraintKinds DeriveFunctor DeriveFoldable DeriveGeneric DeriveTraversable DerivingStrategies DerivingVia FlexibleContexts FlexibleInstances FunctionalDependencies GADTs GeneralizedNewtypeDeriving KindSignatures MultiParamTypeClasses Rank2Types StandaloneDeriving TypeApplications TypeFamilies
+  default-extensions: BangPatterns ConstraintKinds DeriveFunctor DeriveFoldable DeriveGeneric DeriveTraversable DerivingStrategies DerivingVia FlexibleContexts FlexibleInstances FunctionalDependencies GADTs GeneralizedNewtypeDeriving KindSignatures MultiParamTypeClasses Rank2Types StandaloneDeriving TypeApplications TypeFamilies
   ghc-options: -Wall -Wcompat -Widentities -Wincomplete-record-updates -Wincomplete-uni-patterns -Wpartial-fields -Wredundant-constraints -fno-warn-unused-top-binds
   build-depends:
       RtMidi >=0.3.0.0 && <1
@@ -72,7 +72,7 @@ executable midriff-exe
       Paths_midriff
   hs-source-dirs:
       app
-  default-extensions: ConstraintKinds DeriveFunctor DeriveFoldable DeriveGeneric DeriveTraversable DerivingStrategies DerivingVia FlexibleContexts FlexibleInstances FunctionalDependencies GADTs GeneralizedNewtypeDeriving KindSignatures MultiParamTypeClasses Rank2Types StandaloneDeriving TypeApplications TypeFamilies
+  default-extensions: BangPatterns ConstraintKinds DeriveFunctor DeriveFoldable DeriveGeneric DeriveTraversable DerivingStrategies DerivingVia FlexibleContexts FlexibleInstances FunctionalDependencies GADTs GeneralizedNewtypeDeriving KindSignatures MultiParamTypeClasses Rank2Types StandaloneDeriving TypeApplications TypeFamilies
   ghc-options: -Wall -Wcompat -Widentities -Wincomplete-record-updates -Wincomplete-uni-patterns -Wpartial-fields -Wredundant-constraints -fno-warn-unused-top-binds -threaded -rtsopts -with-rtsopts=-N
   build-depends:
       RtMidi >=0.3.0.0 && <1
@@ -99,7 +99,7 @@ test-suite midriff-test
       Paths_midriff
   hs-source-dirs:
       test
-  default-extensions: ConstraintKinds DeriveFunctor DeriveFoldable DeriveGeneric DeriveTraversable DerivingStrategies DerivingVia FlexibleContexts FlexibleInstances FunctionalDependencies GADTs GeneralizedNewtypeDeriving KindSignatures MultiParamTypeClasses Rank2Types StandaloneDeriving TypeApplications TypeFamilies
+  default-extensions: BangPatterns ConstraintKinds DeriveFunctor DeriveFoldable DeriveGeneric DeriveTraversable DerivingStrategies DerivingVia FlexibleContexts FlexibleInstances FunctionalDependencies GADTs GeneralizedNewtypeDeriving KindSignatures MultiParamTypeClasses Rank2Types StandaloneDeriving TypeApplications TypeFamilies
   ghc-options: -Wall -Wcompat -Widentities -Wincomplete-record-updates -Wincomplete-uni-patterns -Wpartial-fields -Wredundant-constraints -fno-warn-unused-top-binds -threaded -rtsopts -with-rtsopts=-N
   build-depends:
       RtMidi >=0.3.0.0 && <1
