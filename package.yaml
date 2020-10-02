@@ -36,6 +36,7 @@ default-extensions:
   - DeriveGeneric
   - DeriveTraversable
   - DerivingStrategies
+  - DerivingVia
   - FlexibleContexts
   - FlexibleInstances
   - FunctionalDependencies
@@ -44,6 +45,7 @@ default-extensions:
   - KindSignatures
   - MultiParamTypeClasses
   - Rank2Types
+  - StandaloneDeriving
   - TypeApplications
   - TypeFamilies
 

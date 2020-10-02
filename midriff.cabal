@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: b29c499e2d5aaddafd34b08d198db2ac0f3a8fa7c548d18ba611759a87b24d57
+-- hash: 34188fe71203c4da4b83137350b0ec50f926f9c08458807998a104925d32d3a5
 
 name:           midriff
 version:        0.1.0
@@ -31,10 +31,12 @@ library
       Midriff.Connect
       Midriff.CQueue
       Midriff.DQueue
+      Midriff.Freq
       Midriff.Handle
       Midriff.Msg
       Midriff.Multiplex
       Midriff.Process
+      Midriff.RateLim
       Midriff.Refs.Classes
       Midriff.Refs.Plex
       Midriff.Refs.XVar
@@ -46,7 +48,7 @@ library
       Paths_midriff
   hs-source-dirs:
       src
-  default-extensions: ConstraintKinds DeriveFunctor DeriveFoldable DeriveGeneric DeriveTraversable DerivingStrategies FlexibleContexts FlexibleInstances FunctionalDependencies GADTs GeneralizedNewtypeDeriving KindSignatures MultiParamTypeClasses Rank2Types TypeApplications TypeFamilies
+  default-extensions: ConstraintKinds DeriveFunctor DeriveFoldable DeriveGeneric DeriveTraversable DerivingStrategies DerivingVia FlexibleContexts FlexibleInstances FunctionalDependencies GADTs GeneralizedNewtypeDeriving KindSignatures MultiParamTypeClasses Rank2Types StandaloneDeriving TypeApplications TypeFamilies
   ghc-options: -Wall -Wcompat -Widentities -Wincomplete-record-updates -Wincomplete-uni-patterns -Wpartial-fields -Wredundant-constraints -fno-warn-unused-top-binds
   build-depends:
       RtMidi >=0.3.0.0 && <1
@@ -71,7 +73,7 @@ executable midriff-exe
       Paths_midriff
   hs-source-dirs:
       app
-  default-extensions: ConstraintKinds DeriveFunctor DeriveFoldable DeriveGeneric DeriveTraversable DerivingStrategies FlexibleContexts FlexibleInstances FunctionalDependencies GADTs GeneralizedNewtypeDeriving KindSignatures MultiParamTypeClasses Rank2Types TypeApplications TypeFamilies
+  default-extensions: ConstraintKinds DeriveFunctor DeriveFoldable DeriveGeneric DeriveTraversable DerivingStrategies DerivingVia FlexibleContexts FlexibleInstances FunctionalDependencies GADTs GeneralizedNewtypeDeriving KindSignatures MultiParamTypeClasses Rank2Types StandaloneDeriving TypeApplications TypeFamilies
   ghc-options: -Wall -Wcompat -Widentities -Wincomplete-record-updates -Wincomplete-uni-patterns -Wpartial-fields -Wredundant-constraints -fno-warn-unused-top-binds -threaded -rtsopts -with-rtsopts=-N
   build-depends:
       RtMidi >=0.3.0.0 && <1
@@ -98,7 +100,7 @@ test-suite midriff-test
       Paths_midriff
   hs-source-dirs:
       test
-  default-extensions: ConstraintKinds DeriveFunctor DeriveFoldable DeriveGeneric DeriveTraversable DerivingStrategies FlexibleContexts FlexibleInstances FunctionalDependencies GADTs GeneralizedNewtypeDeriving KindSignatures MultiParamTypeClasses Rank2Types TypeApplications TypeFamilies
+  default-extensions: ConstraintKinds DeriveFunctor DeriveFoldable DeriveGeneric DeriveTraversable DerivingStrategies DerivingVia FlexibleContexts FlexibleInstances FunctionalDependencies GADTs GeneralizedNewtypeDeriving KindSignatures MultiParamTypeClasses Rank2Types StandaloneDeriving TypeApplications TypeFamilies
   ghc-options: -Wall -Wcompat -Widentities -Wincomplete-record-updates -Wincomplete-uni-patterns -Wpartial-fields -Wredundant-constraints -fno-warn-unused-top-binds -threaded -rtsopts -with-rtsopts=-N
   build-depends:
       RtMidi >=0.3.0.0 && <1

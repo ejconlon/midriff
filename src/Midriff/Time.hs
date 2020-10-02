@@ -17,37 +17,47 @@ module Midriff.Time
   , diffMonoTime
   , threadDelayDelta
   , awaitDelta
+  , assertingNonNegative
   ) where
 
 import Control.Concurrent (threadDelay)
 import Control.DeepSeq (NFData)
+import Data.Semigroup (Sum (..))
 import Data.Word (Word64)
 import GHC.Clock (getMonotonicTimeNSec)
 import GHC.Generics (Generic)
+import GHC.Stack (HasCallStack)
+
+assertingNonNegative :: (HasCallStack, Ord a, Num a, Show a) => a -> a
+assertingNonNegative a =
+  if a < 0
+    then error ("Required non-negative value but got " ++ show a)
+    else a
 
 -- | Non-negative time difference in nanoseconds since last event
 newtype TimeDelta = TimeDelta { unTimeDelta :: Word64 }
-  deriving stock (Eq, Show, Ord, Generic)
+  deriving stock (Eq, Show, Ord, Generic, Bounded)
   deriving newtype (Num)
   deriving anyclass (NFData)
+  deriving (Semigroup, Monoid) via (Sum Word64)
 
 -- | Return a 'TimeDelta' corresponding the the given number of fractional seconds.
 -- (For example, 1.5 represents one and a half seconds.)
-timeDeltaFromFracSecs :: RealFrac a => a -> TimeDelta
-timeDeltaFromFracSecs d = TimeDelta (round (1000000000 * toRational d))
+timeDeltaFromFracSecs :: (Real a, Show a) => a -> TimeDelta
+timeDeltaFromFracSecs d = TimeDelta (round (1000000000 * toRational (assertingNonNegative d)))
 
 -- | Return a 'TimeDelta' corresponding the the given number of nanoseconds.
 -- (For example, 1000000000 represends one second.)
-timeDeltaFromNanos :: Integral a => a -> TimeDelta
-timeDeltaFromNanos = TimeDelta . fromIntegral
+timeDeltaFromNanos :: (Integral a, Show a) => a -> TimeDelta
+timeDeltaFromNanos = TimeDelta . fromIntegral . assertingNonNegative
 
-timeDeltaToFracSecs :: RealFrac a => TimeDelta -> a
+timeDeltaToFracSecs :: Fractional a => TimeDelta -> a
 timeDeltaToFracSecs (TimeDelta n) = fromIntegral n / 1000000000
 
 timeDeltaToNanos :: TimeDelta -> Word64
 timeDeltaToNanos = unTimeDelta
 
--- | Return the
+-- | Return the difference of two time deltas
 diffTimeDelta :: TimeDelta         -- ^ the "larger" delta
               -> TimeDelta         -- ^ the "smaller" delta
               -> Maybe TimeDelta   -- ^ difference between the two (Nothing if negative)
@@ -58,17 +68,16 @@ diffTimeDelta (TimeDelta big) (TimeDelta small) =
 
 -- | Monotonic time in nanoseconds since some unspecified epoch (see 'getMonotonicTimeNs')
 newtype MonoTime = MonoTime { unMonoTime :: Word64 }
-  deriving stock (Eq, Show, Ord, Generic)
-  deriving newtype (Num)
+  deriving stock (Eq, Show, Ord, Generic, Bounded)
   deriving anyclass (NFData)
 
-monoTimeFromFracSecs :: RealFrac a => a -> MonoTime
-monoTimeFromFracSecs d = MonoTime (round (1000000000 * toRational d))
+monoTimeFromFracSecs :: (Real a, Show a) => a -> MonoTime
+monoTimeFromFracSecs d = MonoTime (round (1000000000 * toRational (assertingNonNegative d)))
 
-monoTimeFromNanos :: Integral a => a -> MonoTime
-monoTimeFromNanos = MonoTime . fromIntegral
+monoTimeFromNanos :: (Integral a, Show a) => a -> MonoTime
+monoTimeFromNanos = MonoTime . fromIntegral . assertingNonNegative
 
-monoTimeToFracSecs :: RealFrac a => MonoTime -> a
+monoTimeToFracSecs :: Fractional a => MonoTime -> a
 monoTimeToFracSecs (MonoTime n) = fromIntegral n / 1000000000
 
 monoTimeToNanos :: MonoTime -> Word64

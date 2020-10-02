@@ -1,3 +1,5 @@
+{-# LANGUAGE DeriveAnyClass #-}
+
 module Midriff.DQueue
   ( DQueue
   , newDQueue
@@ -15,14 +17,17 @@ module Midriff.DQueue
 import Control.Concurrent.STM (STM, retry)
 import Control.Concurrent.STM.TVar (TVar)
 import qualified Control.Concurrent.STM.TVar as TVar
+import Control.DeepSeq (NFData (..))
 import Data.Sequence (Seq (..))
 import qualified Data.Sequence as Seq
+import GHC.Generics (Generic)
 
 -- TODO(ejconlon) Use STM TArray instead of a Seq?
 data DQueueState a = DQueueState
   { dqsDropped :: !Int
   , dqsBody :: !(Seq a)
-  }
+  } deriving stock (Eq, Show, Generic)
+    deriving anyclass (NFData)
 
 emptyDQueueState :: DQueueState a
 emptyDQueueState = DQueueState 0 Seq.empty
@@ -33,7 +38,10 @@ emptyDQueueState = DQueueState 0 Seq.empty
 data DQueue a = DQueue
   { dqCapacity :: !Int
   , dqState :: !(TVar (DQueueState a))
-  }
+  } deriving stock (Eq, Generic)
+
+instance NFData (DQueue a) where
+  rnf (DQueue cap st) = seq cap (seq st ())
 
 -- | Create a new 'DQueue'. Capacity must be positive.
 newDQueue :: Int -> STM (DQueue a)

@@ -26,7 +26,8 @@ import Midriff.TEvent (TEvent, isSetTEvent, newTEvent, setTEvent)
 data CQueue a = CQueue
   { cqBody :: !(DQueue a)
   , cqEvent :: !TEvent
-  }
+  } deriving stock (Eq, Generic)
+    deriving anyclass (NFData)
 
 newCQueue :: Int -> STM (CQueue a)
 newCQueue cap = liftA2 CQueue (newDQueue cap) newTEvent
