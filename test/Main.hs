@@ -24,13 +24,13 @@ testSplitWord8 = testCase "Split Word8" $ do
     v @?= w
 
 testPeriod :: TestTree
-testPeriod = testCase "period" $ do
+testPeriod = testCase "Period" $ do
   let f = freqFromFrac (10.0 :: Double) TimeUnitSecs
       p = timeDeltaFromFracSecs (0.1 :: Double)
   singlePeriod f @?= p
 
 testCount :: TestTree
-testCount = testCase "count" $ do
+testCount = testCase "Count" $ do
   let t1 = 440000.0 :: Double
       t2 = 440.0 :: Double
       t3 = 0.44 :: Double

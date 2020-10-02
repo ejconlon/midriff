@@ -11,10 +11,7 @@ import Midriff.Time (TimeDelta, awaitDelta, currentMonoTime)
 -- | Given a function that extracts time and contents from inputs,
 -- delays the current thread by those times and emits those contents.
 delayC :: MonadIO m => (i -> (TimeDelta, o)) -> ConduitT i o m ()
-delayC f = go where
-  go = do
-    m <- liftIO currentMonoTime
-    loop m
+delayC f = liftIO currentMonoTime >>= loop where
   loop m = do
     mi <- await
     case mi of

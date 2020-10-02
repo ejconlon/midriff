@@ -11,25 +11,32 @@ module Midriff.Connect
   , manageInput
   , manageOutput
   , manageQueueInput
+  , manageDelayedOutput
   , queueInputC
   , outputC
   , manageQueueInputC
   , manageOutputC
+  , consumeQueueInput
+  , produceOutput
+  , produceDelayedOutput
   ) where
 
+import Control.Concurrent.Async (Async, async, cancel)
 import Control.Concurrent.STM (atomically)
 import Control.Exception (finally)
-import Control.Monad (void)
+import Control.Monad (void, when)
 import Control.Monad.IO.Class (MonadIO (..))
-import Control.Monad.Trans.Resource (MonadResource)
+import Control.Monad.Trans.Resource (MonadResource, ReleaseKey)
 import Data.Conduit (ConduitT, await)
 import qualified Data.Vector.Storable as VS
 import Data.Void (Void)
 import Data.Word (Word8)
 import Midriff.Config (DeviceConfig (..), Ignores (..), InputConfig (..), PortConfig (..), PortId (..))
-import Midriff.CQueue (CQueue, closeCQueue, newCQueue, sourceCQueue, writeCQueue)
--- import Midriff.Handle (Handle)
-import Midriff.Resource (Manager, managedConduit, mkManager)
+import Midriff.CQueue (CQueue, closeCQueue, newCQueue, readCQueue, sourceCQueue, writeCQueue)
+import Midriff.Freq (Freq)
+import Midriff.Handle (Handle, newHandleIO, runHandle)
+import Midriff.RateLim (RateLim, closeRateLim, newRateLim, readRateLim, writeRateLim)
+import Midriff.Resource (Manager, managedAsyncIO, managedConduit, mkManager)
 import Sound.RtMidi (InputDevice, OutputDevice, cancelCallback, closePort, createInput, createOutput, defaultInput,
                      defaultOutput, ignoreTypes, openPort, openVirtualPort, sendMessage, setCallback)
 
@@ -87,8 +94,8 @@ manageInput :: InputConfig -> InputDevice -> InputCallback -> InputCloseCallback
 manageInput icfg dev cb closeCb = mkManager (acquireInput icfg dev cb closeCb) releaseInput
 
 data QueueInputState = QueueInputState
-  { _qisCQueue :: CQueue InputMsg
-  , _qisInputState :: InputState
+  { qisCQueue :: CQueue InputMsg
+  , qisInputState :: InputState
   }
 
 acquireQueueInput :: InputConfig -> InputDevice -> Int -> IO QueueInputState
@@ -100,7 +107,7 @@ acquireQueueInput icfg dev cap = do
   pure (QueueInputState cq is)
 
 releaseQueueInput :: QueueInputState -> IO ()
-releaseQueueInput = releaseInput . _qisInputState
+releaseQueueInput = releaseInput . qisInputState
 
 manageQueueInput :: InputConfig -> InputDevice -> Int -> Manager QueueInputState
 manageQueueInput icfg dev cap = mkManager (acquireQueueInput icfg dev cap) releaseQueueInput
@@ -110,6 +117,14 @@ queueInputC (QueueInputState cq _) = sourceCQueue cq
 
 manageQueueInputC :: MonadResource m => InputConfig -> InputDevice -> Int -> ConduitT () (Int, InputMsg) m ()
 manageQueueInputC icfg dev cap = managedConduit (manageQueueInput icfg dev cap) queueInputC
+
+consumeQueueInput :: MonadResource m => QueueInputState -> Handle (Int, InputMsg) -> m (ReleaseKey, Async ())
+consumeQueueInput (QueueInputState queue _) handle = managedAsyncIO go where
+  go = do
+    mayMsg <- atomically (readCQueue queue)
+    case mayMsg of
+      Nothing -> pure ()
+      Just msg -> runHandle handle msg *> go
 
 newtype OutputState = OutputState
   { ostDevice :: OutputDevice
@@ -139,3 +154,30 @@ outputC (OutputState dev) = loop where
 
 manageOutputC :: MonadResource m => PortConfig -> OutputDevice -> ConduitT OutputMsg Void m ()
 manageOutputC cfg dev = managedConduit (manageOutput cfg dev) outputC
+
+produceOutput :: OutputState -> Handle OutputMsg
+produceOutput (OutputState dev) = newHandleIO go where
+  go outMsg = sendMessage dev outMsg
+
+data DelayedOutputState = DelayedOutputState
+  { dosAsync :: !(Async ())
+  , dosRateLim :: !(RateLim OutputMsg)
+  , dosOutputState :: !OutputState
+  }
+
+acquireDelayedOutput :: PortConfig -> OutputDevice -> Int -> Freq -> (Int -> IO ()) -> IO DelayedOutputState
+acquireDelayedOutput cfg dev cap freq miss = do
+  os <- acquireOutput cfg dev
+  rl <- newRateLim cap freq
+  as <- async (readRateLim rl (\i a -> when (i > 0) (miss i) *> sendMessage dev a))
+  pure (DelayedOutputState as rl os)
+
+releaseDelayedOutput :: DelayedOutputState -> IO ()
+releaseDelayedOutput (DelayedOutputState as rl os) =
+  finally (closeRateLim rl) (finally (cancel as) (releaseOutput os))
+
+manageDelayedOutput :: PortConfig -> OutputDevice -> Int -> Freq -> (Int -> IO ()) -> Manager DelayedOutputState
+manageDelayedOutput cfg dev cap freq miss = mkManager (acquireDelayedOutput cfg dev cap freq miss) releaseDelayedOutput
+
+produceDelayedOutput :: DelayedOutputState -> Handle OutputMsg
+produceDelayedOutput (DelayedOutputState _ rl _) = newHandleIO (void . writeRateLim rl)
