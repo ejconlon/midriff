@@ -33,10 +33,10 @@ import Data.Void (Void)
 import Data.Word (Word8)
 import Midriff.Config (DeviceConfig (..), Ignores (..), InputConfig (..), PortConfig (..), PortId (..))
 import Midriff.CQueue (CQueue, closeCQueue, newCQueue, readCQueue, sourceCQueue, writeCQueue)
-import Midriff.Freq (Freq)
 import Midriff.Handle (Handle, newHandleIO, runHandle)
 import Midriff.RateLim (RateLim, closeRateLim, newRateLim, readRateLim, writeRateLim)
 import Midriff.Resource (Manager, managedAsyncIO, managedConduit, mkManager)
+import Midriff.Time (TimeDelta)
 import Sound.RtMidi (InputDevice, OutputDevice, cancelCallback, closePort, createInput, createOutput, defaultInput,
                      defaultOutput, ignoreTypes, openPort, openVirtualPort, sendMessage, setCallback)
 
@@ -165,10 +165,10 @@ data DelayedOutputState = DelayedOutputState
   , dosOutputState :: !OutputState
   }
 
-acquireDelayedOutput :: PortConfig -> OutputDevice -> Int -> Freq -> (Int -> IO ()) -> IO DelayedOutputState
-acquireDelayedOutput cfg dev cap freq miss = do
+acquireDelayedOutput :: PortConfig -> OutputDevice -> Int -> TimeDelta -> (Int -> IO ()) -> IO DelayedOutputState
+acquireDelayedOutput cfg dev cap period miss = do
   os <- acquireOutput cfg dev
-  rl <- newRateLim cap freq
+  rl <- newRateLim cap period
   as <- async (readRateLim rl (\i a -> when (i > 0) (miss i) *> sendMessage dev a))
   pure (DelayedOutputState as rl os)
 
@@ -176,8 +176,8 @@ releaseDelayedOutput :: DelayedOutputState -> IO ()
 releaseDelayedOutput (DelayedOutputState as rl os) =
   finally (closeRateLim rl) (finally (cancel as) (releaseOutput os))
 
-manageDelayedOutput :: PortConfig -> OutputDevice -> Int -> Freq -> (Int -> IO ()) -> Manager DelayedOutputState
-manageDelayedOutput cfg dev cap freq miss = mkManager (acquireDelayedOutput cfg dev cap freq miss) releaseDelayedOutput
+manageDelayedOutput :: PortConfig -> OutputDevice -> Int -> TimeDelta -> (Int -> IO ()) -> Manager DelayedOutputState
+manageDelayedOutput cfg dev cap period miss = mkManager (acquireDelayedOutput cfg dev cap period miss) releaseDelayedOutput
 
 produceDelayedOutput :: DelayedOutputState -> Handle OutputMsg
 produceDelayedOutput (DelayedOutputState _ rl _) = newHandleIO (void . writeRateLim rl)

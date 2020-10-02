@@ -15,12 +15,11 @@ import Control.Monad.IO.Class (MonadIO (..))
 import Control.Monad.IO.Unlift (MonadUnliftIO, askRunInIO)
 import GHC.Generics (Generic)
 import Midriff.CQueue (CQueue, WriteResult, closeCQueue, newCQueue, readCQueue, writeCQueue)
-import Midriff.Freq (Freq, singlePeriod)
-import Midriff.Time (awaitDelta)
+import Midriff.Time (TimeDelta, awaitDelta)
 
 data RateLim a = RateLim
   { rlCQueue :: !(CQueue a)
-  , rlFreq :: !Freq
+  , rlPeriod :: !TimeDelta
   } deriving stock (Eq, Generic)
     deriving anyclass (NFData)
 
@@ -31,14 +30,13 @@ closeRateLim :: MonadIO m => RateLim a -> m ()
 closeRateLim (RateLim cq _) = liftIO (atomically (closeCQueue cq))
 
 readRateLimIO :: RateLim a -> (Int -> a -> IO ()) -> IO ()
-readRateLimIO (RateLim cq freq) f = loop minBound where
-  delay = singlePeriod freq
+readRateLimIO (RateLim cq period) f = loop minBound where
   loop lastTime = do
     m <- atomically (readCQueue cq)
     case m of
       Nothing -> pure ()
       Just (i, a) -> do
-        curTime <- awaitDelta lastTime delay
+        curTime <- awaitDelta lastTime period
         f i a
         loop curTime
 
@@ -47,7 +45,7 @@ readRateLim rl f = do
   run <- askRunInIO
   liftIO (readRateLimIO rl (\i a -> run (f i a)))
 
-newRateLim :: MonadIO m => Int -> Freq -> m (RateLim a)
-newRateLim cap freq = do
+newRateLim :: MonadIO m => Int -> TimeDelta -> m (RateLim a)
+newRateLim cap period = do
   cq <- liftIO (atomically (newCQueue cap))
-  pure (RateLim cq freq)
+  pure (RateLim cq period)
