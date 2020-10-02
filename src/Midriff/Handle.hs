@@ -17,7 +17,7 @@ import Data.Functor.Contravariant (Contravariant (..))
 newtype Handle a = Handle { unHandle :: a -> IO () }
 
 instance Semigroup (Handle a) where
-  (Handle h1) <> (Handle h2) = Handle (h1 *> h2)
+  (Handle h1) <> (Handle h2) = Handle (\a -> h1 a *> h2 a)
 
 instance Monoid (Handle a) where
   mempty = Handle (const (pure ()))
