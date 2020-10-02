@@ -22,11 +22,12 @@ module Midriff.Time
 
 import Control.Concurrent (threadDelay)
 import Control.DeepSeq (NFData)
-import Data.Semigroup (Sum (..))
+import Data.Functor (($>))
 import Data.Word (Word64)
 import GHC.Clock (getMonotonicTimeNSec)
 import GHC.Generics (Generic)
 import GHC.Stack (HasCallStack)
+import Data.Semigroup (Sum (..))
 
 assertingNonNegative :: (HasCallStack, Ord a, Num a, Show a) => a -> a
 assertingNonNegative a =
@@ -102,5 +103,6 @@ awaitDelta :: MonoTime -> TimeDelta -> IO MonoTime
 awaitDelta m t = do
   let target = addMonoTime m t
   cur <- currentMonoTime
-  maybe (pure ()) threadDelayDelta (diffMonoTime target cur)
-  pure target
+  case diffMonoTime target cur of
+    Nothing -> pure cur
+    Just td -> threadDelayDelta td $> target
