@@ -23,11 +23,11 @@ module Midriff.Time
 import Control.Concurrent (threadDelay)
 import Control.DeepSeq (NFData)
 import Data.Functor (($>))
+import Data.Semigroup (Sum (..))
 import Data.Word (Word64)
 import GHC.Clock (getMonotonicTimeNSec)
 import GHC.Generics (Generic)
 import GHC.Stack (HasCallStack)
-import Data.Semigroup (Sum (..))
 
 assertingNonNegative :: (HasCallStack, Ord a, Num a, Show a) => a -> a
 assertingNonNegative a =

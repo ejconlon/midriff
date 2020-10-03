@@ -12,8 +12,8 @@ import Control.Concurrent.STM (atomically)
 import Control.DeepSeq (NFData)
 import Control.Monad.IO.Class (MonadIO (..))
 import GHC.Generics (Generic)
-import Midriff.Handle (Handle, runHandle)
 import Midriff.CQueue (CQueue, QueueEvent (..), WriteResult, closeCQueue, newCQueue, readCQueue, writeCQueue)
+import Midriff.Handle (Handle, runHandle)
 import Midriff.Time (TimeDelta, awaitDelta)
 
 data RateLim a = RateLim
