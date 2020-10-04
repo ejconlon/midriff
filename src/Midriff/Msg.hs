@@ -36,42 +36,42 @@ import Midriff.Time (TimeDelta, timeDeltaFromFracSecs)
 import Midriff.Word (Word7 (..))
 
 newtype Channel = Channel { unChannel :: Word7 }
-  deriving stock (Eq, Show, Generic)
+  deriving stock (Eq, Ord, Show, Generic)
   deriving newtype (Num)
   deriving anyclass (NFData, Hashable)
 
 newtype Note = Note { unNote :: Word7 }
-  deriving stock (Eq, Show, Generic)
+  deriving stock (Eq, Ord, Show, Generic)
   deriving newtype (Num)
   deriving anyclass (NFData, Hashable)
 
 newtype Velocity = Velocity { unVelocity :: Word7 }
-  deriving stock (Eq, Show, Generic)
+  deriving stock (Eq, Ord, Show, Generic)
   deriving newtype (Num)
   deriving anyclass (NFData, Hashable)
 
 newtype ControlNum = ControlNum { unControlNum :: Word7 }
-  deriving stock (Eq, Show, Generic)
+  deriving stock (Eq, Ord, Show, Generic)
   deriving newtype (Num)
   deriving anyclass (NFData, Hashable)
 
 newtype ControlVal = ControlVal { unControlVal :: Word7 }
-  deriving stock (Eq, Show, Generic)
+  deriving stock (Eq, Ord, Show, Generic)
   deriving newtype (Num)
   deriving anyclass (NFData, Hashable)
 
 newtype Pressure = Pressure { unPressure :: Word7 }
-  deriving stock (Eq, Show, Generic)
+  deriving stock (Eq, Ord, Show, Generic)
   deriving newtype (Num)
   deriving anyclass (NFData, Hashable)
 
 newtype ProgramNum = ProgramNum { unProgramNum :: Word7 }
-  deriving stock (Eq, Show, Generic)
+  deriving stock (Eq, Ord, Show, Generic)
   deriving newtype (Num)
   deriving anyclass (NFData, Hashable)
 
 newtype PitchBend = PitchBend { unPitchBend :: Word7 }
-  deriving stock (Eq, Show, Generic)
+  deriving stock (Eq, Ord, Show, Generic)
   deriving newtype (Num)
   deriving anyclass (NFData, Hashable)
 
