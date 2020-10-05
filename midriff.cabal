@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 763c5843a4e10e1e03d21e44c3f1c736c0fcdd87c23b440e151413b23951cea7
+-- hash: d28db407e123e5353dcd1f3113dc89e8123bec6f2f0feae70728bd1e2ebd4827
 
 name:           midriff
 version:        0.1.0
@@ -38,6 +38,7 @@ library
       Midriff.RateLim
       Midriff.Refs.Classes
       Midriff.Refs.Plex
+      Midriff.Refs.Unsafe
       Midriff.Refs.XVar
       Midriff.Resource
       Midriff.TEvent
