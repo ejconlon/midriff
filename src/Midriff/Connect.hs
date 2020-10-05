@@ -31,9 +31,9 @@ import Data.Conduit (ConduitT, await)
 import qualified Data.Vector.Storable as VS
 import Data.Void (Void)
 import Data.Word (Word8)
+import Midriff.Callback (Callback, newCallbackIO, runCallback)
 import Midriff.Config (DeviceConfig (..), Ignores (..), InputConfig (..), PortConfig (..), PortId (..))
 import Midriff.CQueue (CQueue, QueueEvent (..), closeCQueue, newCQueue, readCQueue, sourceCQueue, writeCQueue)
-import Midriff.Handle (Handle, newHandleIO, runHandle)
 import Midriff.RateLim (RateLim, closeRateLim, newRateLim, readRateLim, writeRateLim)
 import Midriff.Resource (Manager, managedAsyncIO, managedConduit, mkManager)
 import Midriff.Time (TimeDelta)
@@ -118,13 +118,13 @@ queueInputC (QueueInputState cq _) = sourceCQueue cq
 manageQueueInputC :: MonadResource m => InputConfig -> InputDevice -> Int -> ConduitT () (QueueEvent InputMsg) m ()
 manageQueueInputC icfg dev cap = managedConduit (manageQueueInput icfg dev cap) queueInputC
 
-consumeQueueInput :: MonadResource m => QueueInputState -> Handle (Int, InputMsg) -> m (ReleaseKey, Async ())
-consumeQueueInput (QueueInputState queue _) handle = managedAsyncIO go where
+consumeQueueInput :: MonadResource m => QueueInputState -> Callback (Int, InputMsg) -> m (ReleaseKey, Async ())
+consumeQueueInput (QueueInputState queue _) callback = managedAsyncIO go where
   go = do
     mayMsg <- atomically (readCQueue queue)
     case mayMsg of
       Nothing -> pure ()
-      Just msg -> runHandle handle msg *> go
+      Just msg -> runCallback callback msg *> go
 
 newtype OutputState = OutputState
   { ostDevice :: OutputDevice
@@ -155,8 +155,8 @@ outputC (OutputState dev) = loop where
 manageOutputC :: MonadResource m => PortConfig -> OutputDevice -> ConduitT OutputMsg Void m ()
 manageOutputC cfg dev = managedConduit (manageOutput cfg dev) outputC
 
-produceOutput :: OutputState -> Handle OutputMsg
-produceOutput (OutputState dev) = newHandleIO go where
+produceOutput :: OutputState -> Callback OutputMsg
+produceOutput (OutputState dev) = newCallbackIO go where
   go outMsg = sendMessage dev outMsg
 
 data DelayedOutputState = DelayedOutputState
@@ -165,11 +165,11 @@ data DelayedOutputState = DelayedOutputState
   , dosOutputState :: !OutputState
   }
 
-acquireDelayedOutput :: PortConfig -> OutputDevice -> Int -> TimeDelta -> Handle (QueueEvent OutputMsg) -> IO DelayedOutputState
+acquireDelayedOutput :: PortConfig -> OutputDevice -> Int -> TimeDelta -> Callback (QueueEvent OutputMsg) -> IO DelayedOutputState
 acquireDelayedOutput cfg dev cap period preSend = do
   os <- acquireOutput cfg dev
   rl <- newRateLim cap period
-  let send = newHandleIO (\(QueueEvent _ _ a) -> sendMessage dev a)
+  let send = newCallbackIO (\(QueueEvent _ _ a) -> sendMessage dev a)
   as <- async (readRateLim rl (preSend <> send))
   pure (DelayedOutputState as rl os)
 
@@ -177,8 +177,8 @@ releaseDelayedOutput :: DelayedOutputState -> IO ()
 releaseDelayedOutput (DelayedOutputState as rl os) =
   finally (closeRateLim rl) (finally (cancel as) (releaseOutput os))
 
-manageDelayedOutput :: PortConfig -> OutputDevice -> Int -> TimeDelta -> Handle (QueueEvent OutputMsg) -> Manager DelayedOutputState
+manageDelayedOutput :: PortConfig -> OutputDevice -> Int -> TimeDelta -> Callback (QueueEvent OutputMsg) -> Manager DelayedOutputState
 manageDelayedOutput cfg dev cap period preSend = mkManager (acquireDelayedOutput cfg dev cap period preSend) releaseDelayedOutput
 
-produceDelayedOutput :: DelayedOutputState -> Handle OutputMsg
-produceDelayedOutput (DelayedOutputState _ rl _) = newHandleIO (void . writeRateLim rl)
+produceDelayedOutput :: DelayedOutputState -> Callback OutputMsg
+produceDelayedOutput (DelayedOutputState _ rl _) = newCallbackIO (void . writeRateLim rl)
