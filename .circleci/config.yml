@@ -76,7 +76,7 @@ workflows:
   build:
     jobs:
       - stack_build:
-          lts_ghc_ver: 8.8.4
+          lts_ghc_ver: 9.2.7
       # TODO(ejconlon) Enable these once all deps are updated on hackage
       # - cabal_build:
       #     name: cabal_build_8_8
