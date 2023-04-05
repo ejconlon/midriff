@@ -7,8 +7,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
     - run: |
-        sudo apt update
-        sudo apt install -y libasound2-dev libjack-dev
+        if [ -f .github/packages.txt ]; then apt-get update && apt-get install -y $(cat .github/packages.txt); fi
     - uses: actions/checkout@v3
     - uses: freckle/stack-action@v4
       with:

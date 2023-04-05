@@ -1,4 +1,5 @@
 stack_build := "stack build --fast"
+src_dirs := "src test"
 
 # No default tasks
 default:
@@ -30,9 +31,8 @@ deps:
 
 # Format with fourmolu
 format:
-  stack exec -- fourmolu --mode inplace src test
+  stack exec -- fourmolu --mode inplace {{ src_dirs }}
 
 # Lint with hlint
 lint:
-  stack exec -- hlint src test
-
+  stack exec -- hlint {{ src_dirs }}
