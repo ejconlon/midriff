@@ -6,9 +6,9 @@ jobs:
   test:
     runs-on: ubuntu-latest
     steps:
+    - uses: actions/checkout@v3
     - run: |
         if [ -f .github/packages.txt ]; then apt-get update && apt-get install -y $(cat .github/packages.txt); fi
-    - uses: actions/checkout@v3
     - uses: freckle/stack-action@v4
       with:
         pedantic: false
