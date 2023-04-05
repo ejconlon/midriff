@@ -14,16 +14,17 @@ module Midriff.Refs.Plex
   , plexUnlockedCloseAll
   , plexMember
   , plexKeys
-  ) where
+  )
+where
 
 import Control.DeepSeq (NFData (..))
 import Control.Monad.IO.Class (MonadIO (..))
 import Control.Monad.IO.Unlift (MonadUnliftIO)
 import Control.Monad.Trans.Resource (MonadResource, ReleaseKey, release)
 import Data.Functor (($>))
-import Data.Hashable (Hashable)
 import Data.HashMap.Strict (HashMap)
 import qualified Data.HashMap.Strict as HM
+import Data.Hashable (Hashable)
 import Midriff.Refs.Classes (LockRef (..), NewRef (..), ReadWriteRef (..))
 import Midriff.Resource (Manager, managedAllocate)
 import UnliftIO.Exception (finally, onException)
@@ -31,10 +32,10 @@ import UnliftIO.Exception (finally, onException)
 removeMapVal :: (Hashable a, Eq a) => a -> HashMap a b -> (HashMap a b, Maybe b)
 removeMapVal a m =
   let v = HM.lookup a m
-      m' = case v of { Nothing -> m; Just _ -> HM.delete a m }
-  in (m', v)
+      m' = case v of Nothing -> m; Just _ -> HM.delete a m
+  in  (m', v)
 
-newtype Plex r a b = Plex { unPlex :: r (HashMap a (ReleaseKey, b)) }
+newtype Plex r a b = Plex {unPlex :: r (HashMap a (ReleaseKey, b))}
 
 instance NFData (r (HashMap a (ReleaseKey, b))) => NFData (Plex r a b) where
   rnf = rnf . unPlex
@@ -85,14 +86,14 @@ releaseAll :: [ReleaseKey] -> IO ()
 releaseAll rks =
   case rks of
     [] -> pure ()
-    (rk:rks') -> finally (release rk) (releaseAll rks')
+    (rk : rks') -> finally (release rk) (releaseAll rks')
 
 plexLockedCloseAll :: (LockRef r m, MonadIO m) => Plex r a b -> m ()
 plexLockedCloseAll (Plex mref) =
   modifyLockRef_ mref $ \m ->
     let elems = HM.elems m
         rks = fmap fst elems
-    in liftIO (releaseAll rks) $> HM.empty
+    in  liftIO (releaseAll rks) $> HM.empty
 
 plexUnlockedCloseAll :: (ReadWriteRef r m, MonadIO m) => Plex r a b -> m ()
 plexUnlockedCloseAll (Plex mref) = do

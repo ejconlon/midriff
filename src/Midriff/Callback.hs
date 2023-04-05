@@ -6,7 +6,8 @@ module Midriff.Callback
   , newCallback
   , newCallbackIO
   , runCallback
-  ) where
+  )
+where
 
 import Control.DeepSeq (NFData)
 import Control.Monad ((>=>))
@@ -25,7 +26,7 @@ instance Semigroup (Callback a) where
   sconcat (cb :| cbs) =
     case cbs of
       [] -> cb
-      _ -> Callback (\a -> for_ (cb:cbs) (\(Callback h) -> h a))
+      _ -> Callback (\a -> for_ (cb : cbs) (\(Callback h) -> h a))
 
 instance Monoid (Callback a) where
   mempty = Callback (const (pure ()))

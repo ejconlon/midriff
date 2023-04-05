@@ -20,7 +20,8 @@ module Midriff.Multiplex
   , outPlexMember
   , outPlexKeys
   , manageOutPlex
-  ) where
+  )
+where
 
 import Control.Concurrent.STM (atomically)
 import Control.DeepSeq (NFData)
@@ -34,11 +35,22 @@ import Data.Hashable (Hashable)
 import qualified Data.Vector.Storable as VS
 import Data.Word (Word8)
 import GHC.Generics (Generic)
+import Midriff.CQueue (CQueue, closeCQueue, newCQueue, writeCQueue)
 import Midriff.Config (InputConfig, PortConfig)
 import Midriff.Connect (InputState, OutputState (..), manageInput, manageOutput)
-import Midriff.CQueue (CQueue, closeCQueue, newCQueue, writeCQueue)
-import Midriff.Refs.Plex (Plex, newPlex, plexKeys, plexLockedClose, plexLockedCloseAll, plexLockedOpen, plexMember,
-                          plexUnlockedClose, plexUnlockedCloseAll, plexUnlockedLookup, plexUnlockedOpen)
+import Midriff.Refs.Plex
+  ( Plex
+  , newPlex
+  , plexKeys
+  , plexLockedClose
+  , plexLockedCloseAll
+  , plexLockedOpen
+  , plexMember
+  , plexUnlockedClose
+  , plexUnlockedCloseAll
+  , plexUnlockedLookup
+  , plexUnlockedOpen
+  )
 import Midriff.Refs.XVar (XVar)
 import Midriff.Resource (Manager, mkManager)
 import Sound.RtMidi (InputDevice, OutputDevice, sendMessage)
@@ -49,11 +61,12 @@ data InPlexHandle a = InPlexHandle
   { iphInput :: !(a -> Double -> VS.Vector Word8 -> IO ())
   , iphOpen :: !(a -> IO ())
   , iphClose :: !(a -> IO ())
-  } deriving stock (Generic)
-    deriving anyclass (NFData)
+  }
+  deriving stock (Generic)
+  deriving anyclass (NFData)
 
-data InPlexResponseData =
-    InPlexResponseInput !Double !(VS.Vector Word8)
+data InPlexResponseData
+  = InPlexResponseInput !Double !(VS.Vector Word8)
   | InPlexResponseOpen
   | InPlexResponseClose
   deriving stock (Eq, Show, Generic)
@@ -62,15 +75,17 @@ data InPlexResponseData =
 data InPlexResponse a = InPlexResponse
   { iprName :: !a
   , iprData :: !InPlexResponseData
-  } deriving stock (Eq, Show, Generic)
-    deriving anyclass (NFData)
+  }
+  deriving stock (Eq, Show, Generic)
+  deriving anyclass (NFData)
 
 -- | Thread-safe. Locks on operations and keeps locks for open/close callbacks.
 data InPlex a = InPlex
   { ipHandle :: !(InPlexHandle a)
   , ipPlex :: !(Plex XVar a InputState)
-  } deriving stock (Generic)
-    deriving anyclass (NFData)
+  }
+  deriving stock (Generic)
+  deriving anyclass (NFData)
 
 type InPlexResponseQueue a = CQueue (InPlexResponse a)
 
@@ -78,11 +93,11 @@ inPlexResponseQueueHandle :: InPlexResponseQueue a -> InPlexHandle a
 inPlexResponseQueueHandle queue =
   let onMsg d a = void (atomically (writeCQueue (InPlexResponse a d) queue))
       onInp a t b = onMsg (InPlexResponseInput t b) a
-  in InPlexHandle
-      { iphInput = onInp
-      , iphOpen = onMsg InPlexResponseOpen
-      , iphClose = onMsg InPlexResponseClose
-      }
+  in  InPlexHandle
+        { iphInput = onInp
+        , iphOpen = onMsg InPlexResponseOpen
+        , iphClose = onMsg InPlexResponseClose
+        }
 
 newInPlex :: InPlexHandle a -> IO (InPlex a)
 newInPlex handle = fmap (InPlex handle) newPlex
@@ -123,7 +138,8 @@ manageQueueInPlex cap = mkManager (newQueueInPlex cap) (\(q, ip) -> finally (inP
 -- | Note: Not thread-safe. This is to avoid having to lock every time we want to send a message.
 newtype OutPlex a = OutPlex
   { opPlex :: Plex IORef a OutputState
-  } deriving newtype (NFData)
+  }
+  deriving newtype (NFData)
 
 newOutPlex :: IO (OutPlex a)
 newOutPlex = fmap OutPlex newPlex

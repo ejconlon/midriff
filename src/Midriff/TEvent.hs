@@ -3,16 +3,18 @@ module Midriff.TEvent
   , newTEvent
   , isSetTEvent
   , setTEvent
-  ) where
+  )
+where
 
 import Control.Concurrent.STM (STM)
 import Control.Concurrent.STM.TVar (TVar)
 import qualified Control.Concurrent.STM.TVar as TVar
 import Control.DeepSeq (NFData (..))
 
--- | An variable that starts unset (as False) and can be set once (to True).
--- This is useful for recording one-way transitions like /open/ to /closed/.
-newtype TEvent = TEvent { unTEvent :: TVar Bool }
+{- | An variable that starts unset (as False) and can be set once (to True).
+ This is useful for recording one-way transitions like /open/ to /closed/.
+-}
+newtype TEvent = TEvent {unTEvent :: TVar Bool}
   deriving stock (Eq)
 
 instance NFData TEvent where
@@ -22,8 +24,9 @@ instance NFData TEvent where
 newTEvent :: STM TEvent
 newTEvent = fmap TEvent (TVar.newTVar False)
 
--- | Return true if the event has been set.
--- Once it has been set, it remains so.
+{- | Return true if the event has been set.
+ Once it has been set, it remains so.
+-}
 isSetTEvent :: TEvent -> STM Bool
 isSetTEvent = TVar.readTVar . unTEvent
 

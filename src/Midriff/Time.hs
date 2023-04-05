@@ -18,7 +18,8 @@ module Midriff.Time
   , threadDelayDelta
   , awaitDelta
   , assertingNonNegative
-  ) where
+  )
+where
 
 import Control.Concurrent (threadDelay)
 import Control.DeepSeq (NFData)
@@ -36,19 +37,21 @@ assertingNonNegative a =
     else a
 
 -- | Non-negative time difference in nanoseconds since last event
-newtype TimeDelta = TimeDelta { unTimeDelta :: Word64 }
+newtype TimeDelta = TimeDelta {unTimeDelta :: Word64}
   deriving stock (Eq, Show, Ord, Generic, Bounded)
   deriving newtype (Num)
   deriving anyclass (NFData)
   deriving (Semigroup, Monoid) via (Sum Word64)
 
--- | Return a 'TimeDelta' corresponding the the given number of fractional seconds.
--- (For example, 1.5 represents one and a half seconds.)
+{- | Return a 'TimeDelta' corresponding the the given number of fractional seconds.
+ (For example, 1.5 represents one and a half seconds.)
+-}
 timeDeltaFromFracSecs :: (Real a, Show a) => a -> TimeDelta
 timeDeltaFromFracSecs d = TimeDelta (round (1000000000 * toRational (assertingNonNegative d)))
 
--- | Return a 'TimeDelta' corresponding the the given number of nanoseconds.
--- (For example, 1000000000 represends one second.)
+{- | Return a 'TimeDelta' corresponding the the given number of nanoseconds.
+ (For example, 1000000000 represends one second.)
+-}
 timeDeltaFromNanos :: (Integral a, Show a) => a -> TimeDelta
 timeDeltaFromNanos = TimeDelta . fromIntegral . assertingNonNegative
 
@@ -59,16 +62,20 @@ timeDeltaToNanos :: TimeDelta -> Word64
 timeDeltaToNanos = unTimeDelta
 
 -- | Return the difference of two time deltas
-diffTimeDelta :: TimeDelta         -- ^ the "larger" delta
-              -> TimeDelta         -- ^ the "smaller" delta
-              -> Maybe TimeDelta   -- ^ difference between the two (Nothing if negative)
+diffTimeDelta
+  :: TimeDelta
+  -- ^ the "larger" delta
+  -> TimeDelta
+  -- ^ the "smaller" delta
+  -> Maybe TimeDelta
+  -- ^ difference between the two (Nothing if negative)
 diffTimeDelta (TimeDelta big) (TimeDelta small) =
   if big <= small
     then Nothing
     else Just (TimeDelta (big - small))
 
 -- | Monotonic time in nanoseconds since some unspecified epoch (see 'getMonotonicTimeNs')
-newtype MonoTime = MonoTime { unMonoTime :: Word64 }
+newtype MonoTime = MonoTime {unMonoTime :: Word64}
   deriving stock (Eq, Show, Ord, Generic, Bounded)
   deriving anyclass (NFData)
 

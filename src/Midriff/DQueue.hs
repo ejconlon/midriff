@@ -12,7 +12,8 @@ module Midriff.DQueue
   , readDQueue
   , lengthDQueue
   , capacityDQueue
-  ) where
+  )
+where
 
 import Control.Concurrent.STM (STM, retry)
 import Control.Concurrent.STM.TVar (TVar)
@@ -26,19 +27,22 @@ import GHC.Generics (Generic)
 data DQueueState a = DQueueState
   { dqsDropped :: !Int
   , dqsBody :: !(Seq a)
-  } deriving stock (Eq, Show, Generic)
-    deriving anyclass (NFData)
+  }
+  deriving stock (Eq, Show, Generic)
+  deriving anyclass (NFData)
 
 emptyDQueueState :: DQueueState a
 emptyDQueueState = DQueueState 0 Seq.empty
 
--- | A /Dropping/ queue in 'STM'. Otherwise known as a ring-buffer.
--- The methods exposed will let you know if elements have been dropped
--- since the last operation.
+{- | A /Dropping/ queue in 'STM'. Otherwise known as a ring-buffer.
+ The methods exposed will let you know if elements have been dropped
+ since the last operation.
+-}
 data DQueue a = DQueue
   { dqCapacity :: !Int
   , dqState :: !(TVar (DQueueState a))
-  } deriving stock (Eq, Generic)
+  }
+  deriving stock (Eq, Generic)
 
 instance NFData (DQueue a) where
   rnf (DQueue cap st) = seq cap (seq st ())
@@ -60,7 +64,7 @@ writeDQueue val (DQueue cap mst) = TVar.stateTVar mst $ \(DQueueState dropped bo
         if Seq.length body == cap
           then (True, succ dropped, Seq.drop 1 body :|> val)
           else (False, dropped, body :|> val)
-  in (full, DQueueState newDropped newBody)
+  in  (full, DQueueState newDropped newBody)
 
 -- | Returns true if the 'DQueue' is empty.
 isEmptyDQueue :: DQueue a -> STM Bool
@@ -74,24 +78,27 @@ isFullDQueue (DQueue cap mst) = fmap (\(DQueueState _ body) -> Seq.length body =
 flushDQueue :: DQueue a -> STM (Int, Seq a)
 flushDQueue (DQueue _ mst) = fmap (\(DQueueState dropped body) -> (dropped, body)) (TVar.swapTVar mst emptyDQueueState)
 
--- | Non-blocking read.
--- If the queue is non-empty, returns the first element and the number that have been dropped since last read.
--- If it is empty, returns Nothing.
+{- | Non-blocking read.
+ If the queue is non-empty, returns the first element and the number that have been dropped since last read.
+ If it is empty, returns Nothing.
+-}
 tryReadDQueue :: DQueue a -> STM (Maybe (Int, a))
 tryReadDQueue (DQueue _ mst) = TVar.stateTVar mst $ \st@(DQueueState dropped body) ->
   case body of
     hd :<| newBody -> (Just (dropped, hd), DQueueState 0 newBody)
     _ -> (Nothing, st)
 
--- | Blocking read. Waits until an element is present in the queue and returns it
--- and the number that have been dropped sincel last read.
+{- | Blocking read. Waits until an element is present in the queue and returns it
+ and the number that have been dropped sincel last read.
+-}
 readDQueue :: DQueue a -> STM (Int, a)
-readDQueue (DQueue _ mst) = TVar.readTVar mst >>= \(DQueueState dropped body) ->
-  case body of
-    hd :<| newBody -> do
-      TVar.writeTVar mst (DQueueState 0 newBody)
-      pure (dropped, hd)
-    _ -> retry
+readDQueue (DQueue _ mst) =
+  TVar.readTVar mst >>= \(DQueueState dropped body) ->
+    case body of
+      hd :<| newBody -> do
+        TVar.writeTVar mst (DQueueState 0 newBody)
+        pure (dropped, hd)
+      _ -> retry
 
 -- | Returns the length of the queue, obeying 0 <= length <= capacity.
 lengthDQueue :: DQueue a -> STM Int

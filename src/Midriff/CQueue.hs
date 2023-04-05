@@ -12,7 +12,8 @@ module Midriff.CQueue
   , writeCQueue
   , sourceCQueue
   , sinkCQueue
-  ) where
+  )
+where
 
 import Control.Applicative (liftA2)
 import Control.Concurrent.STM (STM, atomically)
@@ -27,8 +28,9 @@ import Midriff.TEvent (TEvent, isSetTEvent, newTEvent, setTEvent)
 data CQueue a = CQueue
   { cqBody :: !(DQueue a)
   , cqEvent :: !TEvent
-  } deriving stock (Eq, Generic)
-    deriving anyclass (NFData)
+  }
+  deriving stock (Eq, Generic)
+  deriving anyclass (NFData)
 
 newCQueue :: Int -> STM (CQueue a)
 newCQueue cap = liftA2 CQueue (newDQueue cap) newTEvent
@@ -42,12 +44,13 @@ closeCQueue (CQueue _ e) = setTEvent e
 isClosedCQueue :: CQueue a -> STM Bool
 isClosedCQueue (CQueue _ e) = isSetTEvent e
 
--- | Reads from the 'CQueue'.
---
--- If it's open, block until another element is enqueued.
--- If it's closed, return the next element, or 'Nothing'.
--- Once this returns 'Nothing', the queue is fully closed
--- and emptied, so it will never return anything else.
+{- | Reads from the 'CQueue'.
+
+ If it's open, block until another element is enqueued.
+ If it's closed, return the next element, or 'Nothing'.
+ Once this returns 'Nothing', the queue is fully closed
+ and emptied, so it will never return anything else.
+-}
 readCQueue :: CQueue a -> STM (Maybe (Int, a))
 readCQueue (CQueue q e) = do
   -- If closed (for write), tryRead to drain, otherwise block read
@@ -56,8 +59,8 @@ readCQueue (CQueue q e) = do
     then tryReadDQueue q
     else fmap Just (readDQueue q)
 
-data WriteResult =
-    ClosedResult
+data WriteResult
+  = ClosedResult
   | OkResult
   | DroppedResult
   deriving stock (Eq, Show, Enum, Bounded, Generic)
@@ -75,11 +78,13 @@ data QueueEvent a = QueueEvent
   { qeNum :: !Int
   , qeDropped :: !Int
   , qeVal :: !a
-  } deriving stock (Eq, Show, Generic)
-    deriving anyclass (NFData)
+  }
+  deriving stock (Eq, Show, Generic)
+  deriving anyclass (NFData)
 
 sourceCQueue :: MonadIO m => CQueue a -> ConduitT () (QueueEvent a) m ()
-sourceCQueue cq = loop (0 :: Int) where
+sourceCQueue cq = loop (0 :: Int)
+ where
   loop !n = do
     mval <- liftIO (atomically (readCQueue cq))
     case mval of
@@ -89,7 +94,8 @@ sourceCQueue cq = loop (0 :: Int) where
       Nothing -> pure ()
 
 sinkCQueue :: MonadIO m => CQueue a -> ConduitT a WriteResult m ()
-sinkCQueue cq = loop where
+sinkCQueue cq = loop
+ where
   loop = do
     mval <- await
     case mval of

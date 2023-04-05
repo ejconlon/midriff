@@ -8,10 +8,12 @@ import Data.Word (Word8)
 import Midriff.Msg (MidiEvent (..), MidiMsg, decodeEvent, encodeMsg)
 import Midriff.Time (TimeDelta, awaitDelta, currentMonoTime)
 
--- | Given a function that extracts time and contents from inputs,
--- delays the current thread by those times and emits those contents.
+{- | Given a function that extracts time and contents from inputs,
+ delays the current thread by those times and emits those contents.
+-}
 delayC :: MonadIO m => (i -> (TimeDelta, o)) -> ConduitT i o m ()
-delayC f = liftIO currentMonoTime >>= loop where
+delayC f = liftIO currentMonoTime >>= loop
+ where
   loop m = do
     mi <- await
     case mi of

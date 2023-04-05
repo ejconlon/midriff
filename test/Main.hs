@@ -58,9 +58,11 @@ testCount = testCase "Count" $ do
   singlePeriod f3 @?= p
 
 main :: IO ()
-main = defaultMain $ testGroup "Midriff" $
-  [ testWord14
-  , testSplitWord8
-  , testPeriod
-  , testCount
-  ]
+main =
+  defaultMain $
+    testGroup "Midriff" $
+      [ testWord14
+      , testSplitWord8
+      , testPeriod
+      , testCount
+      ]

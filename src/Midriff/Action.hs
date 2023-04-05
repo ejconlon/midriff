@@ -3,7 +3,8 @@ module Midriff.Action
   , runAction
   , newAction
   , newActionIO
-  ) where
+  )
+where
 
 import Control.DeepSeq (NFData (..))
 import Control.Monad.IO.Class (MonadIO (..))

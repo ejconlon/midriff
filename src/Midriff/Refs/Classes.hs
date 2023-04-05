@@ -15,16 +15,18 @@ import UnliftIO.IORef (IORef, atomicModifyIORef', modifyIORef', newIORef, readIO
 class NewRef r m where
   newRef :: a -> m (r a)
 
--- | A reference that we can read and write, but not necessarily without
--- contending with intervening mutations.
+{- | A reference that we can read and write, but not necessarily without
+ contending with intervening mutations.
+-}
 class ReadWriteRef r m where
   readRef :: r a -> m a
   writeRef :: r a -> a -> m ()
 
--- | /Unsafe/ in the sense that in most cases we can implement modify by
--- reading then writing, but we're not guaranteed that no writes have occurred in
--- the meantime. This is true for IORefs, which is why we need a separate core method.
--- It is not true for STM, which means this is actually safe for TVars.
+{- | /Unsafe/ in the sense that in most cases we can implement modify by
+ reading then writing, but we're not guaranteed that no writes have occurred in
+ the meantime. This is true for IORefs, which is why we need a separate core method.
+ It is not true for STM, which means this is actually safe for TVars.
+-}
 unsafeModifyRef :: (Monad m, ReadWriteRef r m) => r a -> (a -> a) -> m ()
 unsafeModifyRef ref f = do
   a <- readRef ref
@@ -39,8 +41,9 @@ unsafeAtomicModifyRef ref f = do
   writeRef ref $! a'
   pure $! b
 
--- | A reference that offers the ability to mutate with a pure function.
--- However, we might not be able to observe the result without intervening mutations.
+{- | A reference that offers the ability to mutate with a pure function.
+ However, we might not be able to observe the result without intervening mutations.
+-}
 class ReadWriteRef r m => ModifyRef r m where
   modifyRef :: r a -> (a -> a) -> m ()
 

@@ -19,7 +19,8 @@ module Midriff.Connect
   , consumeQueueInput
   , produceOutput
   , produceDelayedOutput
-  ) where
+  )
+where
 
 import Control.Concurrent.Async (Async, async, cancel)
 import Control.Concurrent.STM (atomically)
@@ -31,19 +32,36 @@ import Data.Conduit (ConduitT, await)
 import qualified Data.Vector.Storable as VS
 import Data.Void (Void)
 import Data.Word (Word8)
+import Midriff.CQueue (CQueue, QueueEvent (..), closeCQueue, newCQueue, readCQueue, sourceCQueue, writeCQueue)
 import Midriff.Callback (Callback, newCallbackIO, runCallback)
 import Midriff.Config (DeviceConfig (..), Ignores (..), InputConfig (..), PortConfig (..), PortId (..))
-import Midriff.CQueue (CQueue, QueueEvent (..), closeCQueue, newCQueue, readCQueue, sourceCQueue, writeCQueue)
 import Midriff.RateLim (RateLim, closeRateLim, newRateLim, readRateLim, writeRateLim)
 import Midriff.Resource (Manager, managedAsyncIO, managedConduit, mkManager)
 import Midriff.Time (TimeDelta)
-import Sound.RtMidi (InputDevice, OutputDevice, cancelCallback, closePort, createInput, createOutput, defaultInput,
-                     defaultOutput, ignoreTypes, openPort, openVirtualPort, sendMessage, setCallback)
+import Sound.RtMidi
+  ( InputDevice
+  , OutputDevice
+  , cancelCallback
+  , closePort
+  , createInput
+  , createOutput
+  , defaultInput
+  , defaultOutput
+  , ignoreTypes
+  , openPort
+  , openVirtualPort
+  , sendMessage
+  , setCallback
+  )
 
 type InputCallback = Double -> VS.Vector Word8 -> IO ()
+
 type InputCloseCallback = IO ()
+
 type InputMsg = (Double, VS.Vector Word8)
+
 type InputQueue = CQueue (Double, VS.Vector Word8)
+
 type OutputMsg = VS.Vector Word8
 
 internalInputCb :: InputQueue -> InputCallback
@@ -119,7 +137,8 @@ manageQueueInputC :: MonadResource m => InputConfig -> InputDevice -> Int -> Con
 manageQueueInputC icfg dev cap = managedConduit (manageQueueInput icfg dev cap) queueInputC
 
 consumeQueueInput :: MonadResource m => QueueInputState -> Callback (Int, InputMsg) -> m (ReleaseKey, Async ())
-consumeQueueInput (QueueInputState queue _) callback = managedAsyncIO go where
+consumeQueueInput (QueueInputState queue _) callback = managedAsyncIO go
+ where
   go = do
     mayMsg <- atomically (readCQueue queue)
     case mayMsg of
@@ -145,7 +164,8 @@ manageOutput :: PortConfig -> OutputDevice -> Manager OutputState
 manageOutput cfg dev = mkManager (acquireOutput cfg dev) releaseOutput
 
 outputC :: MonadIO m => OutputState -> ConduitT OutputMsg Void m ()
-outputC (OutputState dev) = loop where
+outputC (OutputState dev) = loop
+ where
   loop = do
     mbytes <- await
     case mbytes of
@@ -156,7 +176,8 @@ manageOutputC :: MonadResource m => PortConfig -> OutputDevice -> ConduitT Outpu
 manageOutputC cfg dev = managedConduit (manageOutput cfg dev) outputC
 
 produceOutput :: OutputState -> Callback OutputMsg
-produceOutput (OutputState dev) = newCallbackIO go where
+produceOutput (OutputState dev) = newCallbackIO go
+ where
   go outMsg = sendMessage dev outMsg
 
 data DelayedOutputState = DelayedOutputState

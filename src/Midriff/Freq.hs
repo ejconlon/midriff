@@ -15,7 +15,8 @@ module Midriff.Freq
   , freqToFrac
   , countPerPeriod
   , singlePeriod
-  ) where
+  )
+where
 
 import Control.DeepSeq (NFData)
 import Data.Ratio ((%))
@@ -23,8 +24,8 @@ import Data.Word (Word64)
 import GHC.Generics (Generic)
 import Midriff.Time (TimeDelta, assertingNonNegative, timeDeltaFromNanos, timeDeltaToNanos)
 
-data TimeUnit =
-    TimeUnitNanos
+data TimeUnit
+  = TimeUnitNanos
   | TimeUnitMicros
   | TimeUnitMillis
   | TimeUnitSecs
@@ -35,8 +36,9 @@ data ScaledDelta = ScaledDelta
   { scaledDeltaUnit :: !TimeUnit
   , scaledDeltaValue :: !Word64
   , scaledDeltaRemainder :: !Word64
-  } deriving stock (Eq, Show, Generic)
-    deriving anyclass (NFData)
+  }
+  deriving stock (Eq, Show, Generic)
+  deriving anyclass (NFData)
 
 scaleFactor :: TimeUnit -> Word64
 scaleFactor unit =
@@ -58,16 +60,18 @@ scaledFromTimeDelta td unit =
   let fac = scaleFactor unit
       ns = timeDeltaToNanos td
       (val, re) = quotRem ns fac
-  in ScaledDelta unit val re
+  in  ScaledDelta unit val re
 
 data Count = Count
   { countWhole :: !Word64
   , countPart :: !Double
-  } deriving stock (Eq, Show, Generic)
-    deriving anyclass (NFData)
+  }
+  deriving stock (Eq, Show, Generic)
+  deriving anyclass (NFData)
 
 instance Semigroup Count where
-  Count w1 p1 <> Count w2 p2 = Count (w1 + w2 + wl) p3 where
+  Count w1 p1 <> Count w2 p2 = Count (w1 + w2 + wl) p3
+   where
     (wl, p3) = properFraction (p1 + p2)
 
 instance Monoid Count where
@@ -81,7 +85,8 @@ splitCount :: Count -> (Word64, Count)
 splitCount (Count whole part) = (whole, Count 0 part)
 
 mulCount :: Count -> Word64 -> Double -> Count
-mulCount (Count w1 p1) w2 p2 = Count (w1 * w2 + wl) p3 where
+mulCount (Count w1 p1) w2 p2 = Count (w1 * w2 + wl) p3
+ where
   (wl, p3) = properFraction (fromIntegral w2 * p1 + fromIntegral w1 * p2 + p1 * p2)
 
 countFromFrac :: (Real a, Show a) => a -> Count
@@ -89,7 +94,7 @@ countFromFrac frac =
   let rat = toRational (assertingNonNegative frac)
       (whole, partRat) = properFraction rat
       part = fromRational partRat
-  in Count whole part
+  in  Count whole part
 
 countToFrac :: Fractional a => Count -> a
 countToFrac (Count w p) = fromIntegral w + realToFrac p
@@ -118,13 +123,14 @@ freqToFrac (Freq c (ScaledDelta unit val re)) =
       partRat = re % fac
       part = realToFrac partRat
       c' = mulCount c val part
-  in (countToFrac c', unit)
+  in  (countToFrac c', unit)
 
 data AccEnv = AccEnv
   { accEnvCount :: !Count
   , accEnvTimeDelta :: !TimeDelta
-  } deriving stock (Eq, Show, Generic)
-    deriving anyclass (NFData)
+  }
+  deriving stock (Eq, Show, Generic)
+  deriving anyclass (NFData)
 
 newAccEnv :: Freq -> AccEnv
 newAccEnv (Freq c sd) = AccEnv c (scaledToTimeDelta sd)
@@ -135,7 +141,7 @@ accStep (AccEnv c td) stepTd =
       (whole, partNum) = quotRem (timeDeltaToNanos stepTd) ns
       partRat = partNum % ns
       part = realToFrac partRat
-  in mulCount c whole part
+  in  mulCount c whole part
 
 -- | Inefficient, use sparingly.
 countPerPeriod :: Freq -> ScaledDelta -> Count
@@ -144,7 +150,7 @@ countPerPeriod freq sd = accStep (newAccEnv freq) (scaledToTimeDelta sd)
 accSinglePeriod :: AccEnv -> TimeDelta
 accSinglePeriod (AccEnv c td) =
   let i = round (toRational (timeDeltaToNanos td) / countToRational c) :: Word64
-  in timeDeltaFromNanos i
+  in  timeDeltaFromNanos i
 
 -- | Also inefficient, use sparingly.
 singlePeriod :: Freq -> TimeDelta
