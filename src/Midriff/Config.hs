@@ -29,9 +29,8 @@ data DeviceConfig = DeviceConfig
 unspecDeviceConfig :: String -> DeviceConfig
 unspecDeviceConfig = DeviceConfig UnspecifiedApi
 
-{- | Identifies the port you want to open. Can be a real port, represented by a port
- number, or a virtual port.
--}
+-- | Identifies the port you want to open. Can be a real port, represented by a port
+-- number, or a virtual port.
 data PortId
   = PortIdReal !Int
   | PortIdVirtual
@@ -55,9 +54,8 @@ data Ignores = Ignores
   deriving stock (Eq, Show, Generic)
   deriving anyclass (NFData)
 
-{- | This is effectively the default ignore config
- in RtMidi if not otherwise specified.
--}
+-- | This is effectively the default ignore config
+-- in RtMidi if not otherwise specified.
 defaultIgnores :: Ignores
 defaultIgnores = Ignores False True True
 

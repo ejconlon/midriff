@@ -1,9 +1,8 @@
 {-# LANGUAGE DeriveAnyClass #-}
 
-{- | Note that this module exports constructors for 'Word7' and 'Word14' but they're not
- always safe to use! They're only there to allow you to 'coerce' when you know it's safe.
- Otherwise use 'fromIntegral' to ensure the values are brought into range.
--}
+-- | Note that this module exports constructors for 'Word7' and 'Word14' but they're not
+-- always safe to use! They're only there to allow you to 'coerce' when you know it's safe.
+-- Otherwise use 'fromIntegral' to ensure the values are brought into range.
 module Midriff.Word
   ( msbSplitWord8
   , lsbSplitWord8

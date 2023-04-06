@@ -20,11 +20,10 @@ import Midriff.Refs.Classes
   , unsafeWithLockRef
   )
 
-{- | Sometimes you want to write your app with max correctness
- (e.g. using 'LockRef' constraints) but you don't always want to use it.
- If you know you're not going to need it, wrap a lesser ref in 'UnsafeRef' to
- have those more expensive operations translated to use 'ReadWriteRef'.
--}
+-- | Sometimes you want to write your app with max correctness
+-- (e.g. using 'LockRef' constraints) but you don't always want to use it.
+-- If you know you're not going to need it, wrap a lesser ref in 'UnsafeRef' to
+-- have those more expensive operations translated to use 'ReadWriteRef'.
 newtype UnsafeRef (r :: Type -> Type) (m :: Type -> Type) (a :: Type) = UnsafeRef {unUnsafeRef :: r a}
 
 newUnsafeIORef :: MonadIO m => a -> m (UnsafeRef IORef m a)

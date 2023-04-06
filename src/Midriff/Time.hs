@@ -43,15 +43,13 @@ newtype TimeDelta = TimeDelta {unTimeDelta :: Word64}
   deriving anyclass (NFData)
   deriving (Semigroup, Monoid) via (Sum Word64)
 
-{- | Return a 'TimeDelta' corresponding the the given number of fractional seconds.
- (For example, 1.5 represents one and a half seconds.)
--}
+-- | Return a 'TimeDelta' corresponding the the given number of fractional seconds.
+-- (For example, 1.5 represents one and a half seconds.)
 timeDeltaFromFracSecs :: (Real a, Show a) => a -> TimeDelta
 timeDeltaFromFracSecs d = TimeDelta (round (1000000000 * toRational (assertingNonNegative d)))
 
-{- | Return a 'TimeDelta' corresponding the the given number of nanoseconds.
- (For example, 1000000000 represends one second.)
--}
+-- | Return a 'TimeDelta' corresponding the the given number of nanoseconds.
+-- (For example, 1000000000 represends one second.)
 timeDeltaFromNanos :: (Integral a, Show a) => a -> TimeDelta
 timeDeltaFromNanos = TimeDelta . fromIntegral . assertingNonNegative
 

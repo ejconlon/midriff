@@ -17,10 +17,9 @@ import Control.Monad.Trans.Resource (MonadResource, ReleaseKey, allocate)
 import Data.Conduit (ConduitT, bracketP)
 import UnliftIO.Exception (bracket)
 
-{- | Pair of (acquire, release) functions that can be used for bracket functions.
- In spirit, this is like 'Data.Acquire.Acquire' but lacks some functionality
- because it must remain splittable for use across 'bracket', 'bracketP', and 'allocate'.
--}
+-- | Pair of (acquire, release) functions that can be used for bracket functions.
+-- In spirit, this is like 'Data.Acquire.Acquire' but lacks some functionality
+-- because it must remain splittable for use across 'bracket', 'bracketP', and 'allocate'.
 data Manager a = Manager
   { mgrAcquire :: !(IO a)
   , mgrRelease :: !(a -> IO ())
