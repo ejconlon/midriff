@@ -44,13 +44,12 @@ closeCQueue (CQueue _ e) = setTEvent e
 isClosedCQueue :: CQueue a -> STM Bool
 isClosedCQueue (CQueue _ e) = isSetTEvent e
 
-{- | Reads from the 'CQueue'.
-
- If it's open, block until another element is enqueued.
- If it's closed, return the next element, or 'Nothing'.
- Once this returns 'Nothing', the queue is fully closed
- and emptied, so it will never return anything else.
--}
+-- | Reads from the 'CQueue'.
+--
+-- If it's open, block until another element is enqueued.
+-- If it's closed, return the next element, or 'Nothing'.
+-- Once this returns 'Nothing', the queue is fully closed
+-- and emptied, so it will never return anything else.
 readCQueue :: CQueue a -> STM (Maybe (Int, a))
 readCQueue (CQueue q e) = do
   -- If closed (for write), tryRead to drain, otherwise block read
