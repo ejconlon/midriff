@@ -163,14 +163,14 @@ outPlexSend (OutPlex plex) a bytes = do
   mos <- plexUnlockedLookup plex a
   case mos of
     Nothing -> pure False
-    Just (OutputState dev) -> sendMessage dev bytes $> True
+    Just (OutputState dev) -> liftIO (sendMessage dev bytes) $> True
 
 outPlexSendMany :: (MonadIO m, Hashable a, Eq a, Foldable f) => OutPlex a -> a -> f (VS.Vector Word8) -> m Bool
 outPlexSendMany (OutPlex plex) a msgs = do
   mos <- plexUnlockedLookup plex a
   case mos of
     Nothing -> pure False
-    Just (OutputState dev) -> for_ msgs (sendMessage dev) $> True
+    Just (OutputState dev) -> liftIO (for_ msgs (sendMessage dev)) $> True
 
 outPlexCloseAll :: OutPlex a -> IO ()
 outPlexCloseAll (OutPlex plex) = plexUnlockedCloseAll plex

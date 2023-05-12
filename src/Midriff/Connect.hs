@@ -73,14 +73,14 @@ data InputState = InputState
   }
 
 openInputDevice :: MonadIO m => Maybe DeviceConfig -> m InputDevice
-openInputDevice mpc = do
+openInputDevice mpc = liftIO $ do
   case mpc of
     Nothing -> defaultInput
     -- Empty queue is fine for this, since we set a callback
     Just (DeviceConfig api client) -> createInput api client 0
 
 openOutputDevice :: MonadIO m => Maybe DeviceConfig -> m OutputDevice
-openOutputDevice mpc = do
+openOutputDevice mpc = liftIO $ do
   case mpc of
     Nothing -> defaultOutput
     Just (DeviceConfig api client) -> createOutput api client
@@ -170,15 +170,13 @@ outputC (OutputState dev) = loop
     mbytes <- await
     case mbytes of
       Nothing -> pure ()
-      Just bytes -> sendMessage dev bytes *> loop
+      Just bytes -> liftIO (sendMessage dev bytes) *> loop
 
 manageOutputC :: MonadResource m => PortConfig -> OutputDevice -> ConduitT OutputMsg Void m ()
 manageOutputC cfg dev = managedConduit (manageOutput cfg dev) outputC
 
 produceOutput :: OutputState -> Callback OutputMsg
-produceOutput (OutputState dev) = newCallbackIO go
- where
-  go outMsg = sendMessage dev outMsg
+produceOutput (OutputState dev) = newCallbackIO (sendMessage dev)
 
 data DelayedOutputState = DelayedOutputState
   { dosAsync :: !(Async ())

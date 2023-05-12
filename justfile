@@ -1,5 +1,5 @@
 stack_build := "stack build --fast"
-src_dirs := "src test"
+src_dirs := "src test exe"
 
 # No default tasks
 default:
@@ -36,3 +36,7 @@ format:
 # Lint with hlint
 lint:
   stack exec -- hlint {{ src_dirs }}
+
+# Run the executable
+exe:
+  {{ stack_build }} --test --no-run-tests --exec midriff-exe

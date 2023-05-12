@@ -9,7 +9,7 @@ import Data.Word (Word8)
 import LittleRIO (RIO, ResourceMap, runRIO, withResourceMap)
 import Midriff.Config (PortConfig (..), PortId (..))
 import Midriff.Connect (manageOutputC, openOutputDevice)
-import Midriff.Msg
+import Midriff.Msg (Channel (..), MidiEvent (..), Note (..), Velocity (..), noteOn)
 import Midriff.Process (encodeMsgC, msgDelayC)
 import Midriff.Resource (managedAsync)
 import Midriff.Time (timeDeltaFromFracSecs)
@@ -22,7 +22,7 @@ songEvents =
       arp2 = take 12 $ cycle [0x50, 0x53, 0x58]
       song = cycle (arp0 ++ arp1 ++ arp2 ++ arp0)
       td = timeDeltaFromFracSecs (0.5 :: Double)
-  in [MidiEvent td (noteOn (Channel 1) (Note k) (Velocity 0x7f)) | k <- take 240 song]
+  in  [MidiEvent td (noteOn (Channel 1) (Note k) (Velocity 0x7f)) | k <- take 36 song]
 
 songC :: MonadIO m => ConduitT () (VS.Vector Word8) m ()
 songC = sourceList songEvents .| msgDelayC .| encodeMsgC
@@ -30,13 +30,13 @@ songC = sourceList songEvents .| msgDelayC .| encodeMsgC
 program :: RIO ResourceMap ()
 program = do
   outDev <- openOutputDevice Nothing
-  api <- currentApi outDev
+  api <- liftIO (currentApi outDev)
   liftIO (print api)
-  ports <- listPorts outDev
+  ports <- liftIO (listPorts outDev)
   liftIO (print ports)
   let outputC = manageOutputC (PortConfig "midriff-exe" PortIdVirtual) outDev
   (_, res) <- managedAsync (runConduit (songC .| outputC))
   liftIO (wait res)
 
 main :: IO ()
-main = withResourceMap (flip runRIO program)
+main = withResourceMap (`runRIO` program)

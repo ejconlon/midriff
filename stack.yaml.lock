@@ -5,22 +5,22 @@
 
 packages:
 - completed:
-    hackage: little-rio-1.0.1@sha256:bdad4727ede007138b7722c45470eb1a26e39da2c67051dbe55b76453e7f3ee3,1686
+    hackage: little-rio-2.0.0@sha256:73bf58bb2a56b08fd7a968d969bae09861bb6bb5ae9efa781a3253d95586dc61,1624
     pantry-tree:
-      sha256: d01b8c493e5288ff5096fe0a86571b84c89082617ea8eb5bda39bb986aa18b94
-      size: 259
+      sha256: a262ed987f894242c7c2ed9bc598e09e0e9b888b6955c2a985f4dbd62dab9158
+      size: 213
   original:
-    hackage: little-rio-1.0.1
+    hackage: little-rio-2.0.0
 - completed:
-    hackage: RtMidi-0.5.0.3@sha256:12b158bc11101b7f0a6fed4b4991cc9d15388301292337b6a369177812c759ad,3861
+    hackage: RtMidi-0.6.1.0@sha256:8c9694126352ae2b8935554ff25a4f2d8541ec0f39805300c4ca9fd0620604ef,3806
     pantry-tree:
-      sha256: 2e8f8590698e951409fcd344a315f4b382b42a122ad6839f050d7de6bdaf714d
-      size: 906
+      sha256: 406147390d64947da0062a10837108797d0be59cf3157b4e375fa66cd3490e67
+      size: 860
   original:
-    hackage: RtMidi-0.5.0.3
+    hackage: RtMidi-0.6.1.0
 snapshots:
 - completed:
-    sha256: 14ca51a9a597c32dd7804c10d079feea3d0ae40c5fbbb346cbd67b3ae49f6d01
-    size: 649598
-    url: https://raw.githubusercontent.com/commercialhaskell/stackage-snapshots/master/lts/20/17.yaml
-  original: lts-20.17
+    sha256: 126fa33ceb11f5e85ceb4e86d434756bd9a8439e2e5776d306a15fbc63b01e89
+    size: 650041
+    url: https://raw.githubusercontent.com/commercialhaskell/stackage-snapshots/master/lts/20/20.yaml
+  original: lts-20.20

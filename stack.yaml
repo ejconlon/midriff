@@ -1,8 +1,8 @@
-resolver: lts-20.17
+resolver: lts-20.20
 
 packages:
 - .
 
 extra-deps:
-- little-rio-1.0.1
-- RtMidi-0.5.0.3
+- little-rio-2.0.0
+- RtMidi-0.6.1.0

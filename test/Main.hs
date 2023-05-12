@@ -60,7 +60,8 @@ testCount = testCase "Count" $ do
 main :: IO ()
 main =
   defaultMain $
-    testGroup "Midriff" $
+    testGroup
+      "Midriff"
       [ testWord14
       , testSplitWord8
       , testPeriod
