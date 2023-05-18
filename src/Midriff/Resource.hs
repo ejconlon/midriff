@@ -11,11 +11,11 @@ module Midriff.Resource
 where
 
 import Control.Concurrent.Async (Async, async, cancel)
+import Control.Exception (bracket)
 import Control.Monad.IO.Class (MonadIO (..))
 import Control.Monad.IO.Unlift (MonadUnliftIO, UnliftIO (..), askRunInIO, askUnliftIO)
 import Control.Monad.Trans.Resource (MonadResource, ReleaseKey, allocate)
 import Data.Conduit (ConduitT, bracketP)
-import UnliftIO.Exception (bracket)
 
 -- | Pair of (acquire, release) functions that can be used for bracket functions.
 -- In spirit, this is like 'Data.Acquire.Acquire' but lacks some functionality
@@ -37,7 +37,9 @@ mkManagerUnlifted acq rel = do
 
 -- | 'bracket' using the 'Manager' functions.
 managedBracket :: MonadUnliftIO m => Manager a -> (a -> m b) -> m b
-managedBracket (Manager acq rel) = bracket (liftIO acq) (liftIO . rel)
+managedBracket (Manager acq rel) f = do
+  UnliftIO run <- askUnliftIO
+  liftIO (bracket (liftIO acq) (liftIO . rel) (run . f))
 
 -- | 'bracketP' using the 'Manager' functions.
 managedConduit :: MonadResource m => Manager a -> (a -> ConduitT i o m r) -> ConduitT i o m r

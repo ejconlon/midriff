@@ -1,48 +1,61 @@
-{-# LANGUAGE DeriveAnyClass #-}
-
 module Midriff.RateLim
   ( RateLim
-  , writeRateLim
-  , closeRateLim
-  , readRateLim
-  , newRateLim
+  , rlNew
+  , rlNewIO
+  , rlAwait
+  , rlIsReady
+  -- , rlWrite
+  -- , rlLatch
+  -- , rlRead
+  -- , rlTryRead
   )
 where
 
-import Control.Concurrent.STM (atomically)
-import Control.DeepSeq (NFData)
-import Control.Monad.IO.Class (MonadIO (..))
-import GHC.Generics (Generic)
-import Midriff.CQueue (CQueue, QueueEvent (..), WriteResult, closeCQueue, newCQueue, readCQueue, writeCQueue)
-import Midriff.Callback (Callback, runCallback)
-import Midriff.Time (TimeDelta, awaitDelta)
+import Control.Concurrent.STM (STM)
+import Midriff.Time (MonoTime, TimeDelta, awaitDelta)
+import Midriff.Ring (Next)
+import Midriff.Latch (Latch)
+import Midriff.Gate (Gate)
+import Control.Concurrent.STM.TVar (TVar)
 
-data RateLim a = RateLim
-  { rlCQueue :: !(CQueue a)
-  , rlPeriod :: !TimeDelta
+data RateLim = RateLim
+  { rlPeriod :: !TimeDelta
+  , rlCap :: !(TVar Int)
+  , rlLast :: !(TVar MonoTime)
   }
-  deriving stock (Eq, Generic)
-  deriving anyclass (NFData)
+  deriving stock (Eq)
 
-writeRateLim :: MonadIO m => RateLim a -> a -> m WriteResult
-writeRateLim (RateLim cq _) a = liftIO (atomically (writeCQueue a cq))
+rlNew :: TimeDelta -> Int -> STM RateLim
+rlNew per cap = undefined
 
-closeRateLim :: MonadIO m => RateLim a -> m ()
-closeRateLim (RateLim cq _) = liftIO (atomically (closeCQueue cq))
+rlNewIO :: TimeDelta -> Int -> IO RateLim
+rlNewIO per cap = undefined
 
-readRateLim :: MonadIO m => RateLim a -> Callback (QueueEvent a) -> m ()
-readRateLim (RateLim cq period) f = liftIO $ loop (0 :: Int) minBound
- where
-  loop !n lastTime = do
-    m <- atomically (readCQueue cq)
-    case m of
-      Nothing -> pure ()
-      Just (i, a) -> do
-        curTime <- awaitDelta lastTime period
-        runCallback f (QueueEvent n i a)
-        loop (succ n) curTime
+rlAwait :: RateLim -> STM ()
+rlAwait = undefined
 
-newRateLim :: MonadIO m => Int -> TimeDelta -> m (RateLim a)
-newRateLim cap period = do
-  cq <- liftIO (atomically (newCQueue cap))
-  pure (RateLim cq period)
+rlIsReady :: RateLim -> STM Bool
+rlIsReady = undefined
+
+-- rlRead (RateLim period cq) f = liftIO $ loop (0 :: Int) minBound
+--  where
+--   loop !n lastTime = do
+--     m <- atomically (readCQueue cq)
+--     case m of
+--       Nothing -> pure ()
+--       Just (i, a) -> do
+--         curTime <- awaitDelta lastTime period
+--         runCallback f (QueueEvent n i a)
+--         loop (succ n) curTime
+
+-- rlRun :: RateLim -> IO a -> IO a
+-- rlRun (RateLim per capVar lastVar) act = go
+--  where
+--    go = do
+--     g <- atomically (readCQueue cq)
+--     case m of
+--       Nothing -> pure ()
+--       Just (i, a) -> do
+--         curTime <- awaitDelta lastTime period
+--         runCallback f (QueueEvent n i a)
+--         loop (succ n) curTime

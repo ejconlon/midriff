@@ -1,58 +1,43 @@
-module Midriff.Callback
-  ( Callback
-  , contramapIO
-  , contramapM
-  , forCallback
-  , newCallback
-  , newCallbackIO
-  , runCallback
-  )
-where
+module Midriff.Callback where
 
-import Control.DeepSeq (NFData)
+import Midriff.Gate (Gate (..))
 import Control.Monad ((>=>))
 import Control.Monad.IO.Class (MonadIO (..))
 import Control.Monad.IO.Unlift (MonadUnliftIO, askRunInIO)
-import Data.Foldable (for_)
+import Data.Foldable (toList)
 import Data.Functor.Contravariant (Contravariant (..))
-import Data.List.NonEmpty (NonEmpty (..))
-import Data.Semigroup (sconcat)
 
-newtype Callback a = Callback (a -> IO ())
-  deriving newtype (NFData)
+newtype Callback m a = Callback { cbRun :: a -> m Gate }
 
-instance Semigroup (Callback a) where
-  (Callback h1) <> (Callback h2) = Callback (\a -> h1 a *> h2 a)
-  sconcat (cb :| cbs) =
-    case cbs of
-      [] -> cb
-      _ -> Callback (\a -> for_ (cb : cbs) (\(Callback h) -> h a))
-
-instance Monoid (Callback a) where
-  mempty = Callback (const (pure ()))
-  mappend = (<>)
-  mconcat cbs =
-    case cbs of
-      [] -> mempty
-      _ -> Callback (\a -> for_ cbs (\(Callback h) -> h a))
-
-instance Contravariant Callback where
+instance Contravariant (Callback m) where
   contramap f (Callback h) = Callback (h . f)
 
-contramapM :: MonadUnliftIO m => (a -> m b) -> Callback b -> m (Callback a)
-contramapM f (Callback h) = fmap (\r -> Callback (r . f >=> h)) askRunInIO
+cbEmpty :: Applicative m => Callback m a
+cbEmpty = Callback (const (pure GateOpen))
 
-contramapIO :: (a -> IO b) -> Callback b -> Callback a
-contramapIO f (Callback h) = Callback (f >=> h)
+cbAndThen :: Monad m => Callback m a -> Callback m a -> Callback m a
+cbAndThen (Callback h1) (Callback h2) = Callback $ \a -> do
+  g <- h1 a
+  case g of
+    GateClosed -> pure GateClosed
+    GateOpen -> h2 a
 
-forCallback :: Foldable f => (a -> f b) -> Callback b -> Callback a
-forCallback f (Callback h) = Callback (\a -> for_ (f a) h)
+cbSerial :: (Monad m, Foldable f) => f (Callback m a) -> Callback m a
+cbSerial cbs0 = Callback (\a -> go a (toList cbs0)) where
+  go a = \case
+    [] -> pure GateOpen
+    cb:cbs -> do
+      g <- cbRun cb a
+      case g of
+        GateClosed -> pure GateClosed
+        GateOpen -> go a cbs
 
-runCallback :: MonadIO m => Callback a -> a -> m ()
-runCallback (Callback h) = liftIO . h
+cbContramapU :: (MonadUnliftIO n, MonadIO m) => (a -> n b) -> Callback m b -> n (Callback m a)
+cbContramapU f (Callback h) = fmap (\r -> Callback (liftIO . r . f >=> h)) askRunInIO
 
-newCallback :: MonadUnliftIO m => (a -> m ()) -> m (Callback a)
-newCallback h = fmap (\r -> Callback (r . h)) askRunInIO
+cbContramapIO :: MonadIO m => (a -> IO b) -> Callback m b -> Callback m a
+cbContramapIO f = cbContramapM (liftIO . f)
 
-newCallbackIO :: (a -> IO ()) -> Callback a
-newCallbackIO = Callback
+cbContramapM :: Monad m => (a -> m b) -> Callback m b -> Callback m a
+cbContramapM f (Callback h) = Callback (f >=> h)
+

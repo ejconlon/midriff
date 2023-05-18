@@ -1,48 +1,43 @@
-{-# LANGUAGE DeriveAnyClass #-}
-
 module Midriff.CQueue
   ( CQueue
-  , QueueEvent (..)
-  , WriteResult (..)
-  , newCQueue
-  , newMaxCQueue
-  , closeCQueue
-  , isClosedCQueue
-  , readCQueue
-  , writeCQueue
-  , sourceCQueue
-  , sinkCQueue
+  , Written (..)
+  , cqNewSimple
+  , cqNew
+  , cqNewIO
+  , cqLatch
+  , cqRead
+  , cqTryRead
+  , cqIsEmpty
+  , cqWrite
+  , cqFlush
+  , cqSource
+  , cqSink
   )
 where
 
+import Midriff.Callback (Callback)
+import Midriff.Ring (Ring, Next)
 import Control.Applicative (liftA2)
-import Control.Concurrent.STM (STM, atomically)
-import Control.DeepSeq (NFData)
+import Control.Concurrent.STM (STM, atomically, orElse)
 import Control.Monad.IO.Class (MonadIO (..))
 import Data.Conduit (ConduitT, await, yield)
-import GHC.Generics (Generic)
-import Midriff.DQueue (DQueue, newDQueue, readDQueue, tryReadDQueue, writeDQueue)
-import Midriff.TEvent (TEvent, isSetTEvent, newTEvent, setTEvent)
+import Midriff.DQueue (DQueue, dqNewSimple, dqNew, dqNewIO, dqRead, dqTryRead, dqWrite, dqFlush, dqIsEmpty)
+import Midriff.Latch (Latch, latchNew, latchNewIO, latchAwait, latchIsOpen)
 
 -- | A /Closable/ queue.
 data CQueue a = CQueue
-  { cqBody :: !(DQueue a)
-  , cqEvent :: !TEvent
-  }
-  deriving stock (Eq, Generic)
-  deriving anyclass (NFData)
+  { cqLatch :: !Latch
+  , cqDropper :: !(DQueue a)
+  } deriving stock (Eq)
 
-newCQueue :: Int -> STM (CQueue a)
-newCQueue cap = liftA2 CQueue (newDQueue cap) newTEvent
+cqNewSimple :: Int -> IO (CQueue a)
+cqNewSimple = liftA2 CQueue latchNewIO . dqNewSimple
 
-newMaxCQueue :: STM (CQueue a)
-newMaxCQueue = newCQueue maxBound
+cqNew :: Ring a -> STM (CQueue a)
+cqNew = liftA2 CQueue latchNew . dqNew
 
-closeCQueue :: CQueue a -> STM ()
-closeCQueue (CQueue _ e) = setTEvent e
-
-isClosedCQueue :: CQueue a -> STM Bool
-isClosedCQueue (CQueue _ e) = isSetTEvent e
+cqNewIO :: Ring a -> IO (CQueue a)
+cqNewIO = liftA2 CQueue latchNewIO . dqNewIO
 
 -- | Reads from the 'CQueue'.
 --
@@ -50,58 +45,50 @@ isClosedCQueue (CQueue _ e) = isSetTEvent e
 -- If it's closed, return the next element, or 'Nothing'.
 -- Once this returns 'Nothing', the queue is fully closed
 -- and emptied, so it will never return anything else.
-readCQueue :: CQueue a -> STM (Maybe (Int, a))
-readCQueue (CQueue q e) = do
-  -- If closed (for write), tryRead to drain, otherwise block read
-  closed <- isSetTEvent e
-  if closed
-    then tryReadDQueue q
-    else fmap Just (readDQueue q)
+cqRead :: CQueue a -> STM (Maybe (Next a))
+cqRead (CQueue l d) = orElse (fmap Just (dqRead d)) (Nothing <$ latchAwait l)
 
-data WriteResult
-  = ClosedResult
-  | OkResult
-  | DroppedResult
-  deriving stock (Eq, Show, Enum, Bounded, Generic)
-  deriving anyclass (NFData)
+cqTryRead :: CQueue a -> STM (Maybe (Next a))
+cqTryRead = dqTryRead . cqDropper
 
-writeCQueue :: a -> CQueue a -> STM WriteResult
-writeCQueue val (CQueue q e) = do
-  -- If closed (for write), drop on floor
-  closed <- isSetTEvent e
-  if closed
-    then pure ClosedResult
-    else fmap (\b -> if b then DroppedResult else OkResult) (writeDQueue val q)
+cqIsEmpty :: CQueue a -> STM Bool
+cqIsEmpty = dqIsEmpty . cqDropper
 
-data QueueEvent a = QueueEvent
-  { qeNum :: !Int
-  , qeDropped :: !Int
-  , qeVal :: !a
-  }
-  deriving stock (Eq, Show, Generic)
-  deriving anyclass (NFData)
+data Written
+  = WrittenYes
+  | WrittenNo
+  deriving stock (Eq, Show, Enum, Bounded)
 
-sourceCQueue :: MonadIO m => CQueue a -> ConduitT () (QueueEvent a) m ()
-sourceCQueue cq = loop (0 :: Int)
+cqWrite :: a -> CQueue a -> STM Written
+cqWrite val (CQueue l d) = do
+  open <- latchIsOpen l
+  if open
+    then WrittenYes <$ dqWrite val d
+    else pure WrittenNo
+
+-- | Flush at most capacity elements from the queue
+cqFlush :: CQueue a -> Callback STM (Next a) -> IO ()
+cqFlush = dqFlush . cqDropper
+
+cqSource :: MonadIO m => CQueue a -> ConduitT () (Next a) m ()
+cqSource cq = go
  where
-  loop !n = do
-    mval <- liftIO (atomically (readCQueue cq))
-    case mval of
-      Just (d, v) -> do
-        yield (QueueEvent n d v)
-        loop (succ n)
+  go = do
+    mn <- liftIO (atomically (cqRead cq))
+    case mn of
+      Just n -> yield n *> go
       Nothing -> pure ()
 
-sinkCQueue :: MonadIO m => CQueue a -> ConduitT a WriteResult m ()
-sinkCQueue cq = loop
+cqSink :: MonadIO m => CQueue a -> ConduitT a () m Written
+cqSink cq = go
  where
-  loop = do
+  go = do
     mval <- await
     case mval of
       Just val -> do
-        res <- liftIO (atomically (writeCQueue val cq))
-        yield res
+        res <- liftIO (atomically (cqWrite val cq))
         case res of
-          ClosedResult -> pure ()
-          _ -> loop
-      Nothing -> pure ()
+          WrittenNo -> pure WrittenNo
+          _ -> go
+      Nothing -> pure WrittenYes
+

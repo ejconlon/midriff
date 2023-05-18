@@ -109,7 +109,7 @@ newQueueInPlex cap = do
   ip <- newInPlex handle
   pure (queue, ip)
 
-inPlexOpen :: (MonadResource m, MonadUnliftIO m, Hashable a, Eq a) => InPlex a -> a -> InputConfig -> InputDevice -> m Bool
+inPlexOpen :: (MonadResource m, MonadUnliftIO m, Hashable a) => InPlex a -> a -> InputConfig -> InputDevice -> m Bool
 inPlexOpen (InPlex handle plex) a icfg dev = do
   let cb = iphInput handle a
       openCb = iphOpen handle a
@@ -117,13 +117,13 @@ inPlexOpen (InPlex handle plex) a icfg dev = do
       man = manageInput icfg dev cb closeCb
   plexLockedOpen plex a man (const (liftIO openCb))
 
-inPlexMember :: (MonadIO m, Hashable a, Eq a) => InPlex a -> a -> m Bool
+inPlexMember :: (MonadIO m, Hashable a) => InPlex a -> a -> m Bool
 inPlexMember (InPlex _ plex) = plexMember plex
 
 inPlexKeys :: MonadIO m => InPlex a -> m [a]
 inPlexKeys (InPlex _ plex) = plexKeys plex
 
-inPlexClose :: (MonadUnliftIO m, Hashable a, Eq a) => InPlex a -> a -> m Bool
+inPlexClose :: (MonadUnliftIO m, Hashable a) => InPlex a -> a -> m Bool
 inPlexClose (InPlex _ plex) a = plexLockedClose plex a (const (pure ()))
 
 inPlexCloseAll :: InPlex a -> IO ()
@@ -144,28 +144,28 @@ newtype OutPlex a = OutPlex
 newOutPlex :: IO (OutPlex a)
 newOutPlex = fmap OutPlex newPlex
 
-outPlexOpen :: (MonadResource m, Hashable a, Eq a) => OutPlex a -> a -> PortConfig -> OutputDevice -> m (Maybe OutputState)
+outPlexOpen :: (MonadResource m, Hashable a) => OutPlex a -> a -> PortConfig -> OutputDevice -> m (Maybe OutputState)
 outPlexOpen (OutPlex plex) a pcfg dev = do
   let man = manageOutput pcfg dev
   plexUnlockedOpen plex a man
 
-outPlexClose :: (MonadIO m, Hashable a, Eq a) => OutPlex a -> a -> m Bool
+outPlexClose :: (MonadIO m, Hashable a) => OutPlex a -> a -> m Bool
 outPlexClose (OutPlex plex) = plexUnlockedClose plex
 
-outPlexMember :: (MonadIO m, Hashable a, Eq a) => OutPlex a -> a -> m Bool
+outPlexMember :: (MonadIO m, Hashable a) => OutPlex a -> a -> m Bool
 outPlexMember (OutPlex plex) = plexMember plex
 
 outPlexKeys :: MonadIO m => OutPlex a -> m [a]
 outPlexKeys (OutPlex plex) = plexKeys plex
 
-outPlexSend :: (MonadIO m, Hashable a, Eq a) => OutPlex a -> a -> VS.Vector Word8 -> m Bool
+outPlexSend :: (MonadIO m, Hashable a) => OutPlex a -> a -> VS.Vector Word8 -> m Bool
 outPlexSend (OutPlex plex) a bytes = do
   mos <- plexUnlockedLookup plex a
   case mos of
     Nothing -> pure False
     Just (OutputState dev) -> liftIO (sendMessage dev bytes) $> True
 
-outPlexSendMany :: (MonadIO m, Hashable a, Eq a, Foldable f) => OutPlex a -> a -> f (VS.Vector Word8) -> m Bool
+outPlexSendMany :: (MonadIO m, Hashable a, Foldable f) => OutPlex a -> a -> f (VS.Vector Word8) -> m Bool
 outPlexSendMany (OutPlex plex) a msgs = do
   mos <- plexUnlockedLookup plex a
   case mos of
