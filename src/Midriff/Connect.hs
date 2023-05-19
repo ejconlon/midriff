@@ -2,8 +2,8 @@ module Midriff.Connect
   ( InputMsg
   , OutputAction (..)
   , OutputCallback
-  , acquireInput
-  , acquireOutput
+  , inputNew
+  , outputNew
   )
 where
 
@@ -11,17 +11,15 @@ import Control.Concurrent.STM (atomically)
 import Control.Monad (void, when)
 import Control.Monad.IO.Class (MonadIO (..))
 import Control.Monad.Primitive (PrimState)
-import Data.Acquire (Acquire, mkAcquire)
 import Data.Vector.Storable (Vector)
 import Data.Vector.Storable.Mutable (MVector)
 import Data.Vector.Storable.Mutable qualified as VSM
 import Data.Word (Word8)
 import Foreign.ForeignPtr.Unsafe qualified as FPU
-import Midriff.CQueue (CQueue, cqNewIO)
 import Midriff.Callback (Callback)
 import Midriff.Config (DeviceConfig (..), Ignores (..), InputConfig (..), PortConfig (..), PortId (..))
 import Midriff.Gate (Gate (..))
-import Midriff.Latch (latchClose, latchNewIO)
+import Midriff.Resource (Manager, managerNew)
 import Midriff.Ring (Ring, ringNewIO, ringWrite)
 import Sound.RtMidi
   ( InputDevice
@@ -46,15 +44,15 @@ newtype OutputAction = OutputAction {runOutputAction :: forall m. MVector (PrimS
 
 type OutputCallback = Callback IO OutputAction
 
-openInputDev :: Maybe DeviceConfig -> IO InputDevice
-openInputDev mdc = do
+inputOpenDev :: Maybe DeviceConfig -> IO InputDevice
+inputOpenDev mdc = do
   case mdc of
     Nothing -> defaultInput
     -- Empty queue is fine for this, since we set a callback
     Just (DeviceConfig api client) -> createInput api client 0
 
-openInputPort :: Ring InputMsg -> InputDevice -> InputConfig -> IO ()
-openInputPort ring dev (InputConfig (PortConfig name pid) migs) = do
+inputOpenPort :: Ring InputMsg -> InputDevice -> InputConfig -> IO ()
+inputOpenPort ring dev (InputConfig (PortConfig name pid) migs) = do
   -- Set our ignored message types
   case migs of
     Nothing -> pure ()
@@ -67,45 +65,41 @@ openInputPort ring dev (InputConfig (PortConfig name pid) migs) = do
     PortIdReal pnum -> openPort dev pnum name
     PortIdVirtual -> openVirtualPort dev name
 
-acquireInput :: Maybe DeviceConfig -> InputConfig -> Int -> Acquire (CQueue InputMsg)
-acquireInput mdc ic cap = fmap (\(_, _, cq) -> cq) (mkAcquire alloc free)
+inputNew :: Maybe DeviceConfig -> InputConfig -> Int -> Manager (Ring InputMsg)
+inputNew mdc ic cap = fmap snd (managerNew alloc free)
  where
   alloc = do
     ring <- ringNewIO cap
-    latch <- latchNewIO
-    cq <- cqNewIO latch ring
-    dev <- liftIO (openInputDev mdc)
-    openInputPort ring dev ic
-    pure (dev, latch, cq)
-  free (dev, latch, _) = do
+    dev <- liftIO (inputOpenDev mdc)
+    inputOpenPort ring dev ic
+    pure (dev, ring)
+  free (dev, _) = do
     closePort dev
     cancelCallback dev
-    atomically (latchClose latch)
 
-openOutputDev :: Maybe DeviceConfig -> IO OutputDevice
-openOutputDev mdc = do
+outputOpenDev :: Maybe DeviceConfig -> IO OutputDevice
+outputOpenDev mdc = do
   case mdc of
     Nothing -> defaultOutput
     Just (DeviceConfig api client) -> createOutput api client
 
-openOutputPort :: OutputDevice -> PortConfig -> IO ()
-openOutputPort dev (PortConfig name pid) = do
+outputOpenPort :: OutputDevice -> PortConfig -> IO ()
+outputOpenPort dev (PortConfig name pid) = do
   -- Open the port for output
   case pid of
     PortIdReal pnum -> openPort dev pnum name
     PortIdVirtual -> openVirtualPort dev name
 
 -- | Returned callback is not thread-safe!
--- TODO turn into ref
-acquireOutput :: Maybe DeviceConfig -> PortConfig -> Int -> Acquire OutputCallback
-acquireOutput mdc pc cap = fmap mkCb (mkAcquire alloc free)
+outputNew :: Maybe DeviceConfig -> PortConfig -> Int -> Manager OutputCallback
+outputNew mdc pc cap = fmap mkCb (managerNew alloc free)
  where
   alloc = do
-    dev <- openOutputDev mdc
+    dev <- outputOpenDev mdc
     mvec <- VSM.new @IO @Word8 cap
     let (fptr, _) = VSM.unsafeToForeignPtr0 mvec
         ptr = FPU.unsafeForeignPtrToPtr fptr
-    openOutputPort dev pc
+    outputOpenPort dev pc
     pure (dev, ptr, mvec)
   free (dev, _, _) = closePort dev
   mkCb (dev, ptr, mvec) act = do

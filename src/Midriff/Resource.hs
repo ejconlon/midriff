@@ -13,6 +13,7 @@ module Midriff.Resource
   , refReleaseWait
   , refReleaseAll
   , refReleaseWaitAll
+  , refPeek
   , refUse
   , RefM
   , refRead
@@ -29,37 +30,39 @@ import Control.Monad (ap, void)
 import Control.Monad.IO.Class (MonadIO (..))
 import Control.Monad.IO.Unlift (MonadUnliftIO, UnliftIO (..), askRunInIO, askUnliftIO)
 import Control.Monad.Trans.Resource (MonadResource, ReleaseKey, allocate)
-import Data.Foldable (toList, traverse_)
+import Data.Bifunctor (second)
+import Data.Foldable (traverse_)
 import Midriff.Gate (Gate (..))
 import Midriff.Latch (RLatch (..), latchAwait)
 
 -- | Pair of (acquire, release) functions that can be used for bracket functions.
 -- In spirit, this is like 'Data.Acquire.Acquire' but lacks some functionality
 -- because it must remain splittable for use across 'bracket', 'bracketP', and 'allocate'.
-data Manager a = Manager
-  { mgrAcquire :: !(IO a)
-  , mgrRelease :: !(a -> IO ())
-  }
+data Manager a where
+  Manager :: !(z -> a) -> !(IO z) -> !(z -> IO ()) -> Manager a
+
+instance Functor Manager where
+  fmap f (Manager use acq rel) = Manager (f . use) acq rel
 
 -- | Make a 'Manager' from a pair of (acquire, release) functions.
 managerNew :: IO a -> (a -> IO ()) -> Manager a
-managerNew = Manager
+managerNew = Manager id
 
 -- | Make a 'Manager' from a pair of (acquire, release) functions in an unliftable monad.
 managerNewU :: MonadUnliftIO m => m a -> (a -> m ()) -> m (Manager a)
 managerNewU acq rel = do
   UnliftIO run <- askUnliftIO
-  pure (Manager (run acq) (run . rel))
+  pure (Manager id (run acq) (run . rel))
 
 -- | 'bracket' using the 'Manager' functions.
 managerBracket :: MonadUnliftIO m => Manager a -> (a -> m b) -> m b
-managerBracket (Manager acq rel) f = do
+managerBracket (Manager use acq rel) f = do
   UnliftIO run <- askUnliftIO
-  liftIO (bracket (liftIO acq) (liftIO . rel) (run . f))
+  liftIO (bracket (liftIO acq) (liftIO . rel) (run . f . use))
 
 -- | 'allocate' using the 'Manager' functions.
 managerAllocate :: MonadResource m => Manager a -> m (ReleaseKey, a)
-managerAllocate (Manager acq rel) = allocate acq rel
+managerAllocate (Manager use acq rel) = fmap (second use) (allocate acq rel)
 
 -- | 'async' as a resource, calling 'cancel' on release.
 managerAsync :: (MonadResource m, MonadUnliftIO m) => m a -> m (Async a)
@@ -97,9 +100,9 @@ refPure :: a -> IO (Ref a)
 refPure = fmap (`Ref` Nothing) . newTVarIO . XOpen
 
 refNew :: MonadResource m => Manager a -> m (Ref a)
-refNew (Manager alloc free) = fmap snd $ flip allocate (void . refRelease) $ do
+refNew (Manager use alloc free) = fmap snd $ flip allocate (void . refRelease) $ do
   a <- alloc
-  var <- newTVarIO (XOpen a)
+  var <- newTVarIO (XOpen (use a))
   pure (Ref var (Just (free a)))
 
 -- | Release the ref, returning True if this waiting until close,
@@ -132,6 +135,14 @@ refReleaseAll = traverse_ (void . refRelease)
 
 refReleaseWaitAll :: Foldable f => f (Ref b) -> IO ()
 refReleaseWaitAll = traverse_ (void . refReleaseWait)
+
+refPeek :: Ref a -> STM (Maybe a)
+refPeek (Ref var _) = do
+  x <- readTVar var
+  case x of
+    XOpen a -> pure (Just a)
+    XLocked -> retry
+    _ -> pure Nothing
 
 refUse :: Ref a -> (Maybe a -> IO b) -> IO b
 refUse (Ref var _) = bracket start end
