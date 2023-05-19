@@ -1,79 +1,103 @@
 module Midriff.Plex
   ( Plex
-  , newPlex
+  , plexNew
+  , plexNewU
   , plexOpen
   , plexClose
-  , plexLookup
   , plexCloseAll
-  , plexMember
-  , plexKeys
-  , plexKeysSet
+  , plexPeek
+  , plexLookup
+  , plexFold
+  , plexFor_
+  , plexTrim
   )
 where
 
+import Control.Concurrent.STM (atomically)
+import Control.Monad (foldM)
 import Control.Monad.IO.Class (MonadIO (..))
-import Control.Monad.Trans.Resource (MonadResource, ReleaseKey, release)
-import Control.Exception (finally)
-import Midriff.Resource (Manager, managedAllocate)
-import Data.IORef (IORef, newIORef, readIORef, writeIORef)
+import Control.Monad.IO.Unlift (MonadUnliftIO, askRunInIO)
+import Control.Monad.Trans.Resource (MonadResource)
+import Data.Foldable (traverse_)
 import Data.Map.Strict (Map)
-import qualified Data.Map.Strict as Map
-import Data.Set (Set)
+import Data.Map.Strict qualified as Map
+import Midriff.Gate (Gate (..))
+import Midriff.Latch (latchAwait, latchGate)
+import Midriff.Lock (Lock, lockEscalate, lockNew, lockPeek, lockRead)
+import Midriff.Resource (Manager, Ref, refNew, refReleaseWait, refReleaseWaitAll)
 
-removeMapVal :: Ord a => a -> Map a b -> (Map a b, Maybe b)
-removeMapVal a m =
-  let v = Map.lookup a m
-      m' = case v of Nothing -> m; Just _ -> Map.delete a m
-  in  (m', v)
+data Plex a b = Plex
+  { plexFn :: !(a -> IO (Manager b))
+  , plexLock :: !(Lock (Map a (Ref b)))
+  }
 
--- TODO add a latch
-newtype Plex a b = Plex {unPlex :: IORef (Map a (ReleaseKey, b))}
+plexNew :: (a -> IO (Manager b)) -> IO (Plex a b)
+plexNew fn = fmap (Plex fn) (lockNew Map.empty)
 
-newPlex :: MonadIO m => m (Plex a b)
-newPlex = liftIO (fmap Plex (newIORef Map.empty))
+plexNewU :: MonadUnliftIO m => (a -> m (Manager b)) -> m (Plex a b)
+plexNewU fn = askRunInIO >>= \run -> liftIO (plexNew (run . fn))
 
-plexOpen :: (MonadResource m, Ord a) => Plex a b -> a -> Manager b -> m (Maybe b)
-plexOpen (Plex ref) a manB = do
-  m <- liftIO (readIORef ref)
-  if Map.member a m
-    then pure Nothing
-    else do
-      p@(_, b) <- managedAllocate manB
-      liftIO (writeIORef ref (Map.insert a p m))
-      pure (Just b)
+-- | Open a ref. Returns True if allocated new.
+plexOpen :: (MonadResource m, MonadUnliftIO m, Ord a) => a -> Plex a b -> m (Ref b, Bool)
+plexOpen a (Plex fn lock) = askRunInIO >>= liftIO . lockEscalate lock check . edit
+ where
+  check m = case Map.lookup a m of
+    Nothing -> pure (Left m)
+    Just r ->
+      atomically $
+        latchGate r >>= \case
+          GateClosed -> pure (Left m)
+          GateClosing -> Left m <$ latchAwait r
+          GateOpen -> pure (Right (r, False))
+  edit run m = do
+    mgr <- fn a
+    r <- run (refNew mgr)
+    pure ((r, True), Map.insert a r m)
 
-plexClose :: (MonadIO m, Ord a) => Plex a b -> a -> m Bool
-plexClose (Plex ref) a = liftIO $ do
-  m <- liftIO (readIORef ref)
-  let (m', mrk) = removeMapVal a m
-  case mrk of
-    Nothing -> pure False
-    Just (rk, _) -> liftIO $ do
-      release rk
-      writeIORef ref m'
-      pure True
+-- | Close a ref and remove it from the map. Returns True if the key was found in the map.
+plexClose :: Ord a => a -> Plex a b -> IO Bool
+plexClose a (Plex _ lock) = lockEscalate lock check edit
+ where
+  check m = case Map.lookup a m of
+    Nothing -> pure (Right False)
+    Just r -> Left m <$ refReleaseWait r
+  edit m = pure (True, Map.delete a m)
 
-releaseAll :: [ReleaseKey] -> IO ()
-releaseAll rks =
-  case rks of
-    [] -> pure ()
-    (rk : rks') -> finally (release rk) (releaseAll rks')
+plexCloseAll :: Plex a b -> IO [a]
+plexCloseAll (Plex _ lock) = lockEscalate lock check edit
+ where
+  check m =
+    if Map.null m
+      then pure (Right [])
+      else Left (Map.keys m) <$ refReleaseWaitAll (Map.elems m)
+  edit as = pure (as, Map.empty)
 
-plexCloseAll :: MonadIO m => Plex a b -> m ()
-plexCloseAll (Plex ref) = liftIO $ do
-  m <- readIORef ref
-  let rks = fmap fst (Map.elems m)
-  releaseAll rks
-  writeIORef ref Map.empty
+plexPeek :: Plex a b -> IO (Map a (Ref b))
+plexPeek = atomically . lockPeek . plexLock
 
-plexLookup :: (MonadIO m, Ord a) => Plex a b -> a -> m (Maybe b)
-plexLookup (Plex ref) a = liftIO (fmap (fmap snd . Map.lookup a) (readIORef ref))
+plexLookup :: Ord a => a -> Plex a b -> IO (Maybe (Ref b))
+plexLookup a = fmap (Map.lookup a) . plexPeek
 
-plexMember :: (MonadIO m, Ord a) => Plex a b -> a -> m Bool
-plexMember (Plex ref) a = liftIO (fmap (Map.member a) (readIORef ref))
+plexFold :: Plex a b -> c -> (c -> a -> Ref b -> IO c) -> IO c
+plexFold (Plex _ lock) z f = lockRead lock (foldM (\c (a, r) -> f c a r) z . Map.toList)
 
-plexKeys :: (MonadIO m) => Plex a b -> m [a]
-plexKeys (Plex ref) = liftIO (fmap Map.keys (readIORef ref))
+plexFor_ :: Plex a b -> (a -> Ref b -> IO ()) -> IO ()
+plexFor_ (Plex _ lock) f = lockRead lock (traverse_ (uncurry f) . Map.toList)
 
-plexKeysSet :: (MonadIO m) => Plex a b -> m (Set a)
-plexKeysSet (Plex ref) = liftIO (fmap Map.keysSet (readIORef ref))
+-- | Best-effort deletion of closing/closed refs.
+plexTrim :: Ord a => Plex a b -> IO [a]
+plexTrim (Plex _ lock) = lockEscalate lock check pure
+ where
+  check m = do
+    let ps = Map.toList m
+    p@(as, _) <- foldM plus ([], Map.empty) ps
+    pure $
+      if null as
+        then Right []
+        else Left p
+  plus (as, m') (a, r) = atomically $ do
+    g <- latchGate r
+    case g of
+      GateClosed -> pure (a : as, m')
+      GateClosing -> (a : as, m') <$ latchAwait r
+      GateOpen -> pure (as, Map.insert a r m')

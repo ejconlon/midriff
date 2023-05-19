@@ -1,6 +1,5 @@
 module Midriff.DQueue
   ( DQueue
-  , dqNewSimple
   , dqNew
   , dqNewIO
   , dqWrite
@@ -12,18 +11,16 @@ module Midriff.DQueue
   )
 where
 
-import Midriff.Callback (Callback)
-import Midriff.Ring (Cursor, Next, Ring, cursorNewIO, cursorNew, ringWrite, ringCap, cursorNext, cursorTryNext, cursorHasNext, cursorFlush, ringNewIO)
 import Control.Concurrent.STM (STM)
+import Midriff.Callback (Callback)
+import Midriff.Ring (Cursor, Next, Ring, cursorFlush, cursorHasNext, cursorNew, cursorNewIO, cursorNext, cursorTryNext, ringCap, ringWrite)
 
 -- | A /Dropping/ queue in 'STM'.
 data DQueue a = DQueue
   { dqRing :: !(Ring a)
   , dqCursor :: !(Cursor a)
-  } deriving stock (Eq)
-
-dqNewSimple :: Int -> IO (DQueue a)
-dqNewSimple cap = ringNewIO cap >>= dqNewIO
+  }
+  deriving stock (Eq)
 
 -- | Create a new 'DQueue'. Capacity must be positive.
 dqNew :: Ring a -> STM (DQueue a)
@@ -58,4 +55,3 @@ dqCap = ringCap . dqRing
 -- | Flush at most capacity elements from the queue
 dqFlush :: DQueue a -> Callback STM (Next a) -> IO ()
 dqFlush = cursorFlush . dqCursor
-

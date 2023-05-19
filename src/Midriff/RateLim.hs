@@ -4,19 +4,12 @@ module Midriff.RateLim
   , rlNewIO
   , rlAwait
   , rlIsReady
-  -- , rlWrite
-  -- , rlLatch
-  -- , rlRead
-  -- , rlTryRead
   )
 where
 
 import Control.Concurrent.STM (STM)
-import Midriff.Time (MonoTime, TimeDelta, awaitDelta)
-import Midriff.Ring (Next)
-import Midriff.Latch (Latch)
-import Midriff.Gate (Gate)
 import Control.Concurrent.STM.TVar (TVar)
+import Midriff.Time (MonoTime, TimeDelta)
 
 data RateLim = RateLim
   { rlPeriod :: !TimeDelta
@@ -26,16 +19,16 @@ data RateLim = RateLim
   deriving stock (Eq)
 
 rlNew :: TimeDelta -> Int -> STM RateLim
-rlNew per cap = undefined
+rlNew _per _cap = error "TODO"
 
 rlNewIO :: TimeDelta -> Int -> IO RateLim
-rlNewIO per cap = undefined
+rlNewIO _per _cap = error "TODO"
 
 rlAwait :: RateLim -> STM ()
-rlAwait = undefined
+rlAwait = error "TODO"
 
 rlIsReady :: RateLim -> STM Bool
-rlIsReady = undefined
+rlIsReady = error "TODO"
 
 -- rlRead (RateLim period cq) f = liftIO $ loop (0 :: Int) minBound
 --  where

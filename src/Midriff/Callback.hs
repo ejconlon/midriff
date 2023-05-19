@@ -1,43 +1,42 @@
 module Midriff.Callback where
 
-import Midriff.Gate (Gate (..))
 import Control.Monad ((>=>))
 import Control.Monad.IO.Class (MonadIO (..))
 import Control.Monad.IO.Unlift (MonadUnliftIO, askRunInIO)
 import Data.Foldable (toList)
-import Data.Functor.Contravariant (Contravariant (..))
+import Midriff.Gate (Gate (..))
 
-newtype Callback m a = Callback { cbRun :: a -> m Gate }
-
-instance Contravariant (Callback m) where
-  contramap f (Callback h) = Callback (h . f)
+type Callback m a = a -> m Gate
 
 cbEmpty :: Applicative m => Callback m a
-cbEmpty = Callback (const (pure GateOpen))
+cbEmpty = const (pure GateOpen)
 
 cbAndThen :: Monad m => Callback m a -> Callback m a -> Callback m a
-cbAndThen (Callback h1) (Callback h2) = Callback $ \a -> do
+cbAndThen h1 h2 a = do
   g <- h1 a
   case g of
     GateClosed -> pure GateClosed
     GateOpen -> h2 a
 
 cbSerial :: (Monad m, Foldable f) => f (Callback m a) -> Callback m a
-cbSerial cbs0 = Callback (\a -> go a (toList cbs0)) where
-  go a = \case
+cbSerial cbs0 a = go (toList cbs0)
+ where
+  go = \case
     [] -> pure GateOpen
-    cb:cbs -> do
-      g <- cbRun cb a
+    cb : cbs -> do
+      g <- cb a
       case g of
         GateClosed -> pure GateClosed
-        GateOpen -> go a cbs
+        GateOpen -> go cbs
 
-cbContramapU :: (MonadUnliftIO n, MonadIO m) => (a -> n b) -> Callback m b -> n (Callback m a)
-cbContramapU f (Callback h) = fmap (\r -> Callback (liftIO . r . f >=> h)) askRunInIO
+cbContramap :: (a -> b) -> Callback m b -> Callback m a
+cbContramap f h = h . f
+
+cbContramapM :: Monad m => (a -> m b) -> Callback m b -> Callback m a
+cbContramapM f h = f >=> h
 
 cbContramapIO :: MonadIO m => (a -> IO b) -> Callback m b -> Callback m a
 cbContramapIO f = cbContramapM (liftIO . f)
 
-cbContramapM :: Monad m => (a -> m b) -> Callback m b -> Callback m a
-cbContramapM f (Callback h) = Callback (f >=> h)
-
+cbContramapU :: (MonadUnliftIO n, MonadIO m) => (a -> n b) -> Callback m b -> n (Callback m a)
+cbContramapU f h = fmap (\r -> cbContramapIO (r . f) h) askRunInIO

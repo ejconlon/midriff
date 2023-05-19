@@ -11,7 +11,7 @@ homepage:       https://github.com/ejconlon/midriff#readme
 bug-reports:    https://github.com/ejconlon/midriff/issues
 author:         Eric Conlon
 maintainer:     ejconlon@gmail.com
-copyright:      (c) 2020 Eric Conlon
+copyright:      (c) 2023 Eric Conlon
 license:        BSD3
 license-file:   LICENSE
 build-type:     Simple
@@ -25,6 +25,7 @@ source-repository head
 library
   exposed-modules:
       Midriff.Callback
+      Midriff.Clock
       Midriff.Config
       Midriff.Connect
       Midriff.CQueue
@@ -32,10 +33,8 @@ library
       Midriff.Freq
       Midriff.Gate
       Midriff.Latch
-      Midriff.Msg
-      Midriff.Multiplex
+      Midriff.Lock
       Midriff.Plex
-      Midriff.Process
       Midriff.RateLim
       Midriff.Resource
       Midriff.Ring
@@ -71,10 +70,10 @@ library
       RtMidi >=0.6.1.0 && <1
     , async >=2.2.2 && <3
     , base >=4.12 && <5
-    , conduit >=1.3.2 && <2
     , containers >=0.6.2.1 && <1
     , deepseq >=1.4.4.0 && <2
     , little-rio >=2.0.0 && <3
+    , primitive >=0.7 && <0.9
     , resourcet >=1.2.4.2 && <2
     , stm >=2.5.0.0 && <3
     , unliftio-core >=0.1.2.0 && <1
@@ -113,11 +112,11 @@ executable midriff-exe
       RtMidi >=0.6.1.0 && <1
     , async >=2.2.2 && <3
     , base >=4.12 && <5
-    , conduit >=1.3.2 && <2
     , containers >=0.6.2.1 && <1
     , deepseq >=1.4.4.0 && <2
     , little-rio >=2.0.0 && <3
     , midriff
+    , primitive >=0.7 && <0.9
     , resourcet >=1.2.4.2 && <2
     , stm >=2.5.0.0 && <3
     , unliftio-core >=0.1.2.0 && <1
@@ -157,12 +156,12 @@ test-suite midriff-test
       RtMidi >=0.6.1.0 && <1
     , async >=2.2.2 && <3
     , base >=4.12 && <5
-    , conduit >=1.3.2 && <2
     , containers >=0.6.2.1 && <1
     , deepseq >=1.4.4.0 && <2
     , hedgehog >=1.0.3 && <2
     , little-rio >=2.0.0 && <3
     , midriff
+    , primitive >=0.7 && <0.9
     , resourcet >=1.2.4.2 && <2
     , stm >=2.5.0.0 && <3
     , tasty >=1.2.3 && <2

@@ -1,43 +1,42 @@
 module Midriff.CQueue
   ( CQueue
   , Written (..)
-  , cqNewSimple
   , cqNew
   , cqNewIO
-  , cqLatch
   , cqRead
   , cqTryRead
   , cqIsEmpty
   , cqWrite
   , cqFlush
-  , cqSource
-  , cqSink
+  , cqCallback
   )
 where
 
+import Control.Concurrent.STM (STM, orElse)
 import Midriff.Callback (Callback)
-import Midriff.Ring (Ring, Next)
-import Control.Applicative (liftA2)
-import Control.Concurrent.STM (STM, atomically, orElse)
-import Control.Monad.IO.Class (MonadIO (..))
-import Data.Conduit (ConduitT, await, yield)
-import Midriff.DQueue (DQueue, dqNewSimple, dqNew, dqNewIO, dqRead, dqTryRead, dqWrite, dqFlush, dqIsEmpty)
-import Midriff.Latch (Latch, latchNew, latchNewIO, latchAwait, latchIsOpen)
+import Midriff.DQueue (DQueue, dqFlush, dqIsEmpty, dqNew, dqNewIO, dqRead, dqTryRead, dqWrite)
+import Midriff.Gate (Gate (..))
+import Midriff.Latch (Latch, RLatch (..), WLatch (..), latchAwait, latchIsOpen)
+import Midriff.Ring (Next, Ring)
 
 -- | A /Closable/ queue.
 data CQueue a = CQueue
   { cqLatch :: !Latch
   , cqDropper :: !(DQueue a)
-  } deriving stock (Eq)
+  }
+  deriving stock (Eq)
 
-cqNewSimple :: Int -> IO (CQueue a)
-cqNewSimple = liftA2 CQueue latchNewIO . dqNewSimple
+instance RLatch (CQueue a) where
+  latchGate = latchGate . cqLatch
 
-cqNew :: Ring a -> STM (CQueue a)
-cqNew = liftA2 CQueue latchNew . dqNew
+instance WLatch (CQueue a) where
+  latchClose = latchClose . cqLatch
 
-cqNewIO :: Ring a -> IO (CQueue a)
-cqNewIO = liftA2 CQueue latchNewIO . dqNewIO
+cqNew :: Latch -> Ring a -> STM (CQueue a)
+cqNew l = fmap (CQueue l) . dqNew
+
+cqNewIO :: Latch -> Ring a -> IO (CQueue a)
+cqNewIO l = fmap (CQueue l) . dqNewIO
 
 -- | Reads from the 'CQueue'.
 --
@@ -70,25 +69,6 @@ cqWrite val (CQueue l d) = do
 cqFlush :: CQueue a -> Callback STM (Next a) -> IO ()
 cqFlush = dqFlush . cqDropper
 
-cqSource :: MonadIO m => CQueue a -> ConduitT () (Next a) m ()
-cqSource cq = go
- where
-  go = do
-    mn <- liftIO (atomically (cqRead cq))
-    case mn of
-      Just n -> yield n *> go
-      Nothing -> pure ()
-
-cqSink :: MonadIO m => CQueue a -> ConduitT a () m Written
-cqSink cq = go
- where
-  go = do
-    mval <- await
-    case mval of
-      Just val -> do
-        res <- liftIO (atomically (cqWrite val cq))
-        case res of
-          WrittenNo -> pure WrittenNo
-          _ -> go
-      Nothing -> pure WrittenYes
-
+cqCallback :: CQueue a -> Callback STM a
+cqCallback cq a = flip fmap (cqWrite a cq) $
+  \case WrittenYes -> GateOpen; WrittenNo -> GateClosed

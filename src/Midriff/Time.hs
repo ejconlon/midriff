@@ -23,7 +23,6 @@ where
 
 import Control.Concurrent (threadDelay)
 import Control.DeepSeq (NFData)
-import Data.Functor (($>))
 import Data.Semigroup (Sum (..))
 import Data.Word (Word64)
 import GHC.Clock (getMonotonicTimeNSec)
@@ -95,6 +94,9 @@ currentMonoTime = fmap MonoTime getMonotonicTimeNSec
 addMonoTime :: MonoTime -> TimeDelta -> MonoTime
 addMonoTime (MonoTime mt) (TimeDelta td) = MonoTime (mt + td)
 
+subMonoTime :: MonoTime -> TimeDelta -> MonoTime
+subMonoTime (MonoTime mt) (TimeDelta td) = MonoTime (mt - td)
+
 diffMonoTime :: MonoTime -> MonoTime -> Maybe TimeDelta
 diffMonoTime (MonoTime end) (MonoTime start) =
   if end <= start
@@ -104,10 +106,11 @@ diffMonoTime (MonoTime end) (MonoTime start) =
 threadDelayDelta :: TimeDelta -> IO ()
 threadDelayDelta (TimeDelta td) = threadDelay (fromIntegral (div td 1000))
 
+alignTime :: MonoTime -> TimeDelta -> MonoTime
+alignTime = error "TODO"
+
 awaitDelta :: MonoTime -> TimeDelta -> IO MonoTime
-awaitDelta m t = do
-  let target = addMonoTime m t
+awaitDelta _start per = do
   cur <- currentMonoTime
-  case diffMonoTime target cur of
-    Nothing -> pure cur
-    Just td -> threadDelayDelta td $> target
+  let _window = subMonoTime cur per
+  error "TODO"

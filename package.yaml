@@ -4,7 +4,7 @@ github:              "ejconlon/midriff"
 license:             BSD3
 author:              "Eric Conlon"
 maintainer:          "ejconlon@gmail.com"
-copyright:           "(c) 2020 Eric Conlon"
+copyright:           "(c) 2023 Eric Conlon"
 # category:            Undefined
 # synopsis:            Undefined
 
@@ -18,10 +18,10 @@ description: Please see the README on GitHub at <https://github.com/ejconlon/mid
 dependencies:
 - base >= 4.12 && < 5
 - async >= 2.2.2 && < 3
-- conduit >= 1.3.2 && < 2
 - containers >= 0.6.2.1 && < 1
 - deepseq >= 1.4.4.0 && < 2
 - little-rio >= 2.0.0 && < 3
+- primitive >= 0.7 && < 0.9
 - resourcet >= 1.2.4.2 && < 2
 - RtMidi >= 0.6.1.0 && < 1
 - stm >= 2.5.0.0 && < 3

@@ -15,14 +15,14 @@ module Midriff.Ring
   )
 where
 
-import Midriff.Gate (Gate (..))
-import Midriff.Callback (Callback (..))
 import Control.Concurrent.STM (STM, atomically, retry)
 import Control.Concurrent.STM.TVar (TVar, newTVar, newTVarIO, readTVar, readTVarIO, stateTVar, writeTVar)
 import Control.Monad ((>=>))
 import Data.Maybe (isJust)
 import Data.Vector (Vector)
 import Data.Vector qualified as V
+import Midriff.Callback (Callback)
+import Midriff.Gate (Gate (..))
 
 data Pos = Pos
   { posGen :: !Int
@@ -54,7 +54,8 @@ data Ring a = Ring
   { ringCap :: !Int
   , ringBuf :: !(Vector (TVar a))
   , ringWriteHead :: !(TVar Pos)
-  } deriving stock (Eq)
+  }
+  deriving stock (Eq)
 
 data Next a = Next {nextDropped :: !Int, nextValue :: !a}
   deriving stock (Eq, Ord, Show, Functor, Foldable, Traversable)
@@ -62,7 +63,8 @@ data Next a = Next {nextDropped :: !Int, nextValue :: !a}
 data Cursor a = Cursor
   { cursorRing :: !(Ring a)
   , cursorReadHead :: !(TVar Pos)
-  } deriving stock (Eq)
+  }
+  deriving stock (Eq)
 
 uninit :: a
 uninit = error "Evaluated uninitialized ring element"
@@ -115,13 +117,13 @@ cursorTryNext (Cursor r rhVar) = do
 
 -- | Flush at most capacity elements. Most useful if you know there are no more writes.
 cursorFlush :: Cursor a -> Callback STM (Next a) -> IO ()
-cursorFlush cur k = go (ringCap (cursorRing cur)) where
+cursorFlush cur cb = go (ringCap (cursorRing cur))
+ where
   go !left = do
     if left == 0
       then pure ()
       else do
-        g <- atomically (cursorTryNext cur >>= maybe (pure GateClosed) (cbRun k))
+        g <- atomically (cursorTryNext cur >>= maybe (pure GateClosed) cb)
         case g of
-          GateClosed -> pure ()
           GateOpen -> go (left - 1)
-
+          _ -> pure ()
