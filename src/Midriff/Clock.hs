@@ -14,18 +14,18 @@ import Control.Concurrent (ThreadId, forkFinally, killThread)
 import Control.Concurrent.STM (STM, atomically)
 import Control.Concurrent.STM.TVar (TVar, newTVarIO, readTVar, readTVarIO)
 import Data.Acquire (Acquire)
-import Midriff.Latch (Latch, latchClose, latchNewIO)
 import Midriff.Time (MonoTime, TimeDelta)
+import Midriff.Control (Control)
 
 data Clock = Clock
   { clockPeriod :: !TimeDelta
   , clockTid :: !ThreadId
-  , clockLatch :: !Latch
+  , clockControl :: !Control
   , clockVar :: !(TVar MonoTime)
   }
 
-acquireClockFrom :: MonoTime -> Latch -> TimeDelta -> Acquire Clock
-acquireClockFrom latch start per = undefined -- manageNew alloc free where
+acquireClockFrom :: MonoTime -> Control -> TimeDelta -> Acquire Clock
+acquireClockFrom control start per = undefined -- manageNew alloc free where
 -- alloc = do
 --   v <- newTVarIO start
 --   l <- latchNewIO
@@ -35,7 +35,7 @@ acquireClockFrom latch start per = undefined -- manageNew alloc free where
 --   go = error "TODO"
 -- free = killThread . clockTid
 
-acquireClock :: Latch -> TimeDelta -> Acquire Clock
+acquireClock :: Control -> TimeDelta -> Acquire Clock
 acquireClock = acquireClockFrom minBound
 
 acquireClockFork :: Rational -> Clock -> Acquire Clock

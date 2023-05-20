@@ -28,11 +28,11 @@ library
       Midriff.Clock
       Midriff.Config
       Midriff.Connect
+      Midriff.Control
       Midriff.CQueue
       Midriff.DQueue
       Midriff.Freq
       Midriff.Gate
-      Midriff.Latch
       Midriff.Lock
       Midriff.Plex
       Midriff.RateLim

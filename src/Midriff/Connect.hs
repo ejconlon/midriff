@@ -2,14 +2,21 @@ module Midriff.Connect
   ( InputMsg
   , OutputAction (..)
   , OutputCallback
+  , InputArgs (..)
   , inputNew
+  , inputPlex
+  , OutputArgs (..)
   , outputNew
+  , outputPlex
+  , ConnArgs (..)
+  , ConnDevice (..)
+  , connNew
+  , connPlex
   )
 where
 
-import Control.Concurrent.STM (atomically)
-import Control.Monad (void, when)
-import Control.Monad.IO.Class (MonadIO (..))
+import Control.Monad.Trans.Resource (MonadResource, MonadUnliftIO)
+import Control.Monad (when, (>=>))
 import Control.Monad.Primitive (PrimState)
 import Data.Vector.Storable (Vector)
 import Data.Vector.Storable.Mutable (MVector)
@@ -19,8 +26,8 @@ import Foreign.ForeignPtr.Unsafe qualified as FPU
 import Midriff.Callback (Callback)
 import Midriff.Config (DeviceConfig (..), Ignores (..), InputConfig (..), PortConfig (..), PortId (..))
 import Midriff.Gate (Gate (..))
-import Midriff.Resource (Manager, managerNew)
-import Midriff.Ring (Ring, ringNewIO, ringWrite)
+import Midriff.Resource (Manager, managerNew, refNew)
+import Midriff.Plex (Plex, plexNewU)
 import Sound.RtMidi
   ( InputDevice
   , OutputDevice
@@ -40,6 +47,8 @@ import Sound.RtMidi
 data InputMsg = InputMsg {imDelta :: !Double, imPayload :: !(Vector Word8)}
   deriving stock (Eq, Ord, Show)
 
+type InputCallback = InputMsg -> IO ()
+
 newtype OutputAction = OutputAction {runOutputAction :: forall m. MVector (PrimState m) Word8 -> m Int}
 
 type OutputCallback = Callback IO OutputAction
@@ -51,31 +60,34 @@ inputOpenDev mdc = do
     -- Empty queue is fine for this, since we set a callback
     Just (DeviceConfig api client) -> createInput api client 0
 
-inputOpenPort :: Ring InputMsg -> InputDevice -> InputConfig -> IO ()
-inputOpenPort ring dev (InputConfig (PortConfig name pid) migs) = do
+inputOpenPort :: InputCallback -> InputDevice -> InputConfig -> IO ()
+inputOpenPort cb dev (InputConfig (PortConfig name pid) migs) = do
   -- Set our ignored message types
   case migs of
     Nothing -> pure ()
     Just (Ignores x y z) -> ignoreTypes dev x y z
-  -- Set our callback to enqueue to our own ring buffer
-  let cb d vs = atomically (void (ringWrite ring (InputMsg d vs)))
-  setCallback dev cb
+  -- Set a callback to enqueue to our own ring buffer, for example
+  setCallback dev (\d vs -> cb (InputMsg d vs))
   -- Open the port for input
   case pid of
     PortIdReal pnum -> openPort dev pnum name
     PortIdVirtual -> openVirtualPort dev name
 
-inputNew :: Maybe DeviceConfig -> InputConfig -> Int -> Manager (Ring InputMsg)
-inputNew mdc ic cap = fmap snd (managerNew alloc free)
+data InputArgs = InputArgs !(Maybe DeviceConfig) !InputConfig !InputCallback
+
+inputNew :: InputArgs -> Manager InputDevice
+inputNew (InputArgs mdc ic cb) = managerNew alloc free
  where
   alloc = do
-    ring <- ringNewIO cap
-    dev <- liftIO (inputOpenDev mdc)
-    inputOpenPort ring dev ic
-    pure (dev, ring)
-  free (dev, _) = do
+    dev <- inputOpenDev mdc
+    inputOpenPort cb dev ic
+    pure dev
+  free dev = do
     closePort dev
     cancelCallback dev
+
+inputPlex :: (MonadResource m, MonadUnliftIO m) => (k -> m InputArgs) -> m (Plex k InputDevice)
+inputPlex f = plexNewU (f >=> refNew . inputNew)
 
 outputOpenDev :: Maybe DeviceConfig -> IO OutputDevice
 outputOpenDev mdc = do
@@ -90,19 +102,39 @@ outputOpenPort dev (PortConfig name pid) = do
     PortIdReal pnum -> openPort dev pnum name
     PortIdVirtual -> openVirtualPort dev name
 
--- | Returned callback is not thread-safe!
-outputNew :: Maybe DeviceConfig -> PortConfig -> Int -> Manager OutputCallback
-outputNew mdc pc cap = fmap mkCb (managerNew alloc free)
+data OutputArgs = OutputArgs !(Maybe DeviceConfig) !PortConfig
+  deriving stock (Eq)
+
+outputNew :: OutputArgs -> Manager OutputDevice
+outputNew (OutputArgs mdc pc) = managerNew alloc free
  where
   alloc = do
     dev <- outputOpenDev mdc
-    mvec <- VSM.new @IO @Word8 cap
-    let (fptr, _) = VSM.unsafeToForeignPtr0 mvec
-        ptr = FPU.unsafeForeignPtrToPtr fptr
     outputOpenPort dev pc
-    pure (dev, ptr, mvec)
-  free (dev, _, _) = closePort dev
-  mkCb (dev, ptr, mvec) act = do
+    pure dev
+  free = closePort
+
+outputCb :: OutputDevice -> Int -> IO OutputCallback
+outputCb dev cap = do
+  mvec <- VSM.new @IO @Word8 cap
+  let (fptr, _) = VSM.unsafeToForeignPtr0 mvec
+      ptr = FPU.unsafeForeignPtrToPtr fptr
+  pure $ \act ->  do
     used <- runOutputAction act mvec
     when (used > 0) (sendUnsafeMessage dev ptr used)
     pure GateOpen
+
+outputPlex :: (MonadResource m, MonadUnliftIO m) => (k -> m OutputArgs) -> m (Plex k OutputDevice)
+outputPlex f = plexNewU (f >=> refNew . outputNew)
+
+data ConnArgs = ConnArgsInput !InputArgs | ConnArgsOutput !OutputArgs
+
+data ConnDevice = ConnDeviceInput !InputDevice | ConnDeviceOutput !OutputDevice
+
+connNew :: ConnArgs -> Manager ConnDevice
+connNew =  \case
+  ConnArgsInput ia -> fmap ConnDeviceInput (inputNew ia)
+  ConnArgsOutput oa -> fmap ConnDeviceOutput (outputNew oa)
+
+connPlex :: (MonadResource m, MonadUnliftIO m) => (k -> m ConnArgs) -> m (Plex k ConnDevice)
+connPlex f = plexNewU (f >=> refNew . connNew)

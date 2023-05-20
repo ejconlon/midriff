@@ -22,46 +22,44 @@ import Data.Foldable (traverse_)
 import Data.Map.Strict (Map)
 import Data.Map.Strict qualified as Map
 import Midriff.Gate (Gate (..))
-import Midriff.Latch (latchAwait, latchGate)
 import Midriff.Lock (Lock, lockEscalate, lockNew, lockPeek, lockRead)
-import Midriff.Resource (Manager, Ref, refNew, refReleaseWait, refReleaseWaitAll)
+import Midriff.Resource (Ref, refClose, refGate, refAwait)
 
 data Plex a b = Plex
-  { plexFn :: !(a -> IO (Manager b))
+  { plexFn :: !(a -> IO (Ref b))
   , plexLock :: !(Lock (Map a (Ref b)))
   }
 
-plexNew :: (a -> IO (Manager b)) -> IO (Plex a b)
+plexNew :: (a -> IO (Ref b)) -> IO (Plex a b)
 plexNew fn = fmap (Plex fn) (lockNew Map.empty)
 
-plexNewU :: MonadUnliftIO m => (a -> m (Manager b)) -> m (Plex a b)
+plexNewU :: MonadUnliftIO m => (a -> m (Ref b)) -> m (Plex a b)
 plexNewU fn = askRunInIO >>= \run -> liftIO (plexNew (run . fn))
 
 -- | Open a ref. Returns True if allocated new.
-plexOpen :: (MonadResource m, MonadUnliftIO m, Ord a) => a -> Plex a b -> m (Ref b, Bool)
-plexOpen a (Plex fn lock) = askRunInIO >>= liftIO . lockEscalate lock check . edit
+plexOpen :: (MonadResource m, Ord a) => a -> Plex a b -> m (Ref b, Bool)
+plexOpen a (Plex fn lock) = liftIO (lockEscalate lock check edit)
  where
   check m = case Map.lookup a m of
     Nothing -> pure (Left m)
     Just r ->
       atomically $
-        latchGate r >>= \case
+        refGate r >>= \case
           GateClosed -> pure (Left m)
-          GateClosing -> Left m <$ latchAwait r
+          GateClosing -> Left m <$ refAwait r
           GateOpen -> pure (Right (r, False))
-  edit run m = do
-    mgr <- fn a
-    r <- run (refNew mgr)
+  edit m = do
+    r <- fn a
     pure ((r, True), Map.insert a r m)
 
--- | Close a ref and remove it from the map. Returns True if the key was found in the map.
+-- | Close a ref and remove it from the map. Returns True if this was the closer.
 plexClose :: Ord a => a -> Plex a b -> IO Bool
 plexClose a (Plex _ lock) = lockEscalate lock check edit
  where
   check m = case Map.lookup a m of
     Nothing -> pure (Right False)
-    Just r -> Left m <$ refReleaseWait r
-  edit m = pure (True, Map.delete a m)
+    Just r -> fmap (Left . (,m)) (refClose r)
+  edit (closer, m) = pure (closer, Map.delete a m)
 
 plexCloseAll :: Plex a b -> IO [a]
 plexCloseAll (Plex _ lock) = lockEscalate lock check edit
@@ -69,7 +67,7 @@ plexCloseAll (Plex _ lock) = lockEscalate lock check edit
   check m =
     if Map.null m
       then pure (Right [])
-      else Left (Map.keys m) <$ refReleaseWaitAll (Map.elems m)
+      else Left (Map.keys m) <$ traverse_ refClose (Map.elems m)
   edit as = pure (as, Map.empty)
 
 plexPeek :: Plex a b -> IO (Map a (Ref b))
@@ -96,8 +94,8 @@ plexTrim (Plex _ lock) = lockEscalate lock check pure
         then Right []
         else Left p
   plus (as, m') (a, r) = atomically $ do
-    g <- latchGate r
+    g <- refGate r
     case g of
       GateClosed -> pure (a : as, m')
-      GateClosing -> (a : as, m') <$ latchAwait r
+      GateClosing -> (a : as, m') <$ refAwait r
       GateOpen -> pure (as, Map.insert a r m')

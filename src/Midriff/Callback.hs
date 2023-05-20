@@ -16,6 +16,7 @@ cbAndThen h1 h2 a = do
   g <- h1 a
   case g of
     GateClosed -> pure GateClosed
+    GateClosing -> pure GateClosing
     GateOpen -> h2 a
 
 cbSerial :: (Monad m, Foldable f) => f (Callback m a) -> Callback m a
@@ -27,6 +28,7 @@ cbSerial cbs0 a = go (toList cbs0)
       g <- cb a
       case g of
         GateClosed -> pure GateClosed
+        GateClosing -> pure GateClosing
         GateOpen -> go cbs
 
 cbContramap :: (a -> b) -> Callback m b -> Callback m a
