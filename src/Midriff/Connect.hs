@@ -15,9 +15,9 @@ module Midriff.Connect
   )
 where
 
-import Control.Monad.Trans.Resource (MonadResource, MonadUnliftIO)
 import Control.Monad (when, (>=>))
 import Control.Monad.Primitive (PrimState)
+import Control.Monad.Trans.Resource (MonadResource, MonadUnliftIO)
 import Data.Vector.Storable (Vector)
 import Data.Vector.Storable.Mutable (MVector)
 import Data.Vector.Storable.Mutable qualified as VSM
@@ -26,8 +26,8 @@ import Foreign.ForeignPtr.Unsafe qualified as FPU
 import Midriff.Callback (Callback)
 import Midriff.Config (DeviceConfig (..), Ignores (..), InputConfig (..), PortConfig (..), PortId (..))
 import Midriff.Gate (Gate (..))
-import Midriff.Resource (Manager, managerNew, refNew)
 import Midriff.Plex (Plex, plexNewU)
+import Midriff.Resource (Manager, managerNew, refNew)
 import Sound.RtMidi
   ( InputDevice
   , OutputDevice
@@ -119,7 +119,7 @@ outputCb dev cap = do
   mvec <- VSM.new @IO @Word8 cap
   let (fptr, _) = VSM.unsafeToForeignPtr0 mvec
       ptr = FPU.unsafeForeignPtrToPtr fptr
-  pure $ \act ->  do
+  pure $ \act -> do
     used <- runOutputAction act mvec
     when (used > 0) (sendUnsafeMessage dev ptr used)
     pure GateOpen
@@ -132,7 +132,7 @@ data ConnArgs = ConnArgsInput !InputArgs | ConnArgsOutput !OutputArgs
 data ConnDevice = ConnDeviceInput !InputDevice | ConnDeviceOutput !OutputDevice
 
 connNew :: ConnArgs -> Manager ConnDevice
-connNew =  \case
+connNew = \case
   ConnArgsInput ia -> fmap ConnDeviceInput (inputNew ia)
   ConnArgsOutput oa -> fmap ConnDeviceOutput (outputNew oa)
 

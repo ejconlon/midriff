@@ -21,17 +21,17 @@ module Midriff.Resource
   )
 where
 
-import Control.Monad.Fix (mfix)
 import Control.Concurrent.STM (STM, atomically, retry)
 import Control.Concurrent.STM.TVar (TVar, newTVarIO, readTVar, writeTVar)
 import Control.Exception (bracket, finally, mask_, onException)
 import Control.Monad (ap, unless, void, (>=>))
+import Control.Monad.Fix (mfix)
 import Control.Monad.IO.Class (MonadIO (..))
 import Control.Monad.IO.Unlift (MonadUnliftIO, UnliftIO (..), askUnliftIO)
 import Control.Monad.Trans.Resource (MonadResource, ReleaseKey, allocate)
 import Data.Bitraversable (bitraverse)
-import Midriff.Gate (Gate (..), gateAwait)
 import Midriff.Control (Control (..))
+import Midriff.Gate (Gate (..), gateAwait)
 
 -- | Pair of (acquire, release) functions that can be used for bracket functions.
 -- In spirit, this is like 'Data.Acquire.Acquire' but lacks some functionality

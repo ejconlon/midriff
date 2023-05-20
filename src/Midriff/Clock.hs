@@ -14,8 +14,8 @@ import Control.Concurrent (ThreadId, forkFinally, killThread)
 import Control.Concurrent.STM (STM, atomically)
 import Control.Concurrent.STM.TVar (TVar, newTVarIO, readTVar, readTVarIO)
 import Data.Acquire (Acquire)
-import Midriff.Time (MonoTime, TimeDelta)
 import Midriff.Control (Control)
+import Midriff.Time (MonoTime, TimeDelta)
 
 data Clock = Clock
   { clockPeriod :: !TimeDelta

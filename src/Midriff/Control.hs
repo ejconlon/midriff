@@ -4,12 +4,13 @@ module Midriff.Control
   , controlAwait
   , controlNew
   , controlNewIO
-  ) where
+  )
+where
 
-import Control.Monad ((>=>))
 import Control.Concurrent.STM (STM, atomically)
 import Control.Concurrent.STM.TVar (TVar, newTVar, newTVarIO, readTVar, stateTVar)
-import Midriff.Gate (Gate (..), gateIsOpen, gateAwait)
+import Control.Monad ((>=>))
+import Midriff.Gate (Gate (..), gateAwait, gateIsOpen)
 
 data Control = Control
   { controlGate :: !(STM Gate)
@@ -50,4 +51,3 @@ controlNew = fmap cvControl cvNew
 
 controlNewIO :: IO Control
 controlNewIO = fmap cvControl cvNewIO
-

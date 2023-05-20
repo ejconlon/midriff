@@ -23,7 +23,7 @@ import Data.Map.Strict (Map)
 import Data.Map.Strict qualified as Map
 import Midriff.Gate (Gate (..))
 import Midriff.Lock (Lock, lockEscalate, lockNew, lockPeek, lockRead)
-import Midriff.Resource (Ref, refClose, refGate, refAwait)
+import Midriff.Resource (Ref, refAwait, refClose, refGate)
 
 data Plex a b = Plex
   { plexFn :: !(a -> IO (Ref b))

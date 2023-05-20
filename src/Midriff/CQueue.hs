@@ -14,10 +14,10 @@ where
 
 import Control.Concurrent.STM (STM, orElse)
 import Midriff.Callback (Callback)
+import Midriff.Control (Control, controlAwait, controlIsOpen)
 import Midriff.DQueue (DQueue, dqFlush, dqIsEmpty, dqNew, dqNewIO, dqRead, dqTryRead, dqWrite)
 import Midriff.Gate (Gate (..))
 import Midriff.Ring (Next, Ring)
-import Midriff.Control (Control, controlAwait, controlIsOpen)
 
 -- | A /Closable/ queue.
 data CQueue a = CQueue
