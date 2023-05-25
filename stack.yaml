@@ -1,8 +1,7 @@
-resolver: lts-20.21
+resolver: https://raw.githubusercontent.com/ejconlon/stack-resolvers/master/head.yaml
+
+ghc-options:
+  "$everything": -haddock
 
 packages:
 - .
-
-extra-deps:
-- little-rio-2.0.0
-- RtMidi-0.6.1.0

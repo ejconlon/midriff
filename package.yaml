@@ -27,6 +27,9 @@ dependencies:
 - stm >= 2.5.0.0 && < 3
 - unliftio-core >= 0.1.2.0 && < 1
 - vector >= 0.12.1.2 && < 1
+- dahdit
+- midiot
+- network
 
 default-extensions:
 - BangPatterns
