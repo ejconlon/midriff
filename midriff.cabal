@@ -34,6 +34,7 @@ library
       Midriff.Freq
       Midriff.Gate
       Midriff.Lock
+      Midriff.Mvc
       Midriff.Plex
       Midriff.RateLim
       Midriff.Resource
@@ -71,14 +72,19 @@ library
     , async >=2.2.2 && <3
     , base >=4.12 && <5
     , containers >=0.6.2.1 && <1
+    , contravariant
     , dahdit
+    , dahdit-network
     , deepseq >=1.4.4.0 && <2
     , little-rio >=2.0.0 && <3
     , midiot
-    , network
+    , mtl
+    , optics
+    , pipes
     , primitive >=0.7 && <0.9
     , resourcet >=1.2.4.2 && <2
     , stm >=2.5.0.0 && <3
+    , transformers
     , unliftio-core >=0.1.2.0 && <1
     , vector >=0.12.1.2 && <1
   default-language: GHC2021
@@ -116,15 +122,20 @@ executable midriff-exe
     , async >=2.2.2 && <3
     , base >=4.12 && <5
     , containers >=0.6.2.1 && <1
+    , contravariant
     , dahdit
+    , dahdit-network
     , deepseq >=1.4.4.0 && <2
     , little-rio >=2.0.0 && <3
     , midiot
     , midriff
-    , network
+    , mtl
+    , optics
+    , pipes
     , primitive >=0.7 && <0.9
     , resourcet >=1.2.4.2 && <2
     , stm >=2.5.0.0 && <3
+    , transformers
     , unliftio-core >=0.1.2.0 && <1
     , vector >=0.12.1.2 && <1
   default-language: GHC2021
@@ -163,19 +174,24 @@ test-suite midriff-test
     , async >=2.2.2 && <3
     , base >=4.12 && <5
     , containers >=0.6.2.1 && <1
+    , contravariant
     , dahdit
+    , dahdit-network
     , deepseq >=1.4.4.0 && <2
     , hedgehog >=1.0.3 && <2
     , little-rio >=2.0.0 && <3
     , midiot
     , midriff
-    , network
+    , mtl
+    , optics
+    , pipes
     , primitive >=0.7 && <0.9
     , resourcet >=1.2.4.2 && <2
     , stm >=2.5.0.0 && <3
     , tasty >=1.2.3 && <2
     , tasty-hedgehog >=1.0.0.2 && <2
     , tasty-hunit >=0.10.0.2 && <1
+    , transformers
     , unliftio-core >=0.1.2.0 && <1
     , vector >=0.12.1.2 && <1
   default-language: GHC2021

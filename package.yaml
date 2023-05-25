@@ -29,7 +29,12 @@ dependencies:
 - vector >= 0.12.1.2 && < 1
 - dahdit
 - midiot
-- network
+- dahdit-network
+- optics
+- transformers
+- mtl
+- pipes
+- contravariant
 
 default-extensions:
 - BangPatterns
