@@ -29,6 +29,7 @@ library
       Midriff.Config
       Midriff.Connect
       Midriff.Control
+      Midriff.Coro
       Midriff.CQueue
       Midriff.DQueue
       Midriff.Freq
@@ -77,11 +78,11 @@ library
     , dahdit-network
     , deepseq >=1.4.4.0 && <2
     , foldl
+    , free
     , little-rio >=2.0.0 && <3
     , midiot
     , mtl
     , optics
-    , pipes
     , primitive >=0.7 && <0.9
     , profunctors
     , resourcet >=1.2.4.2 && <2
@@ -129,12 +130,12 @@ executable midriff-exe
     , dahdit-network
     , deepseq >=1.4.4.0 && <2
     , foldl
+    , free
     , little-rio >=2.0.0 && <3
     , midiot
     , midriff
     , mtl
     , optics
-    , pipes
     , primitive >=0.7 && <0.9
     , profunctors
     , resourcet >=1.2.4.2 && <2
@@ -183,13 +184,13 @@ test-suite midriff-test
     , dahdit-network
     , deepseq >=1.4.4.0 && <2
     , foldl
+    , free
     , hedgehog >=1.0.3 && <2
     , little-rio >=2.0.0 && <3
     , midiot
     , midriff
     , mtl
     , optics
-    , pipes
     , primitive >=0.7 && <0.9
     , profunctors
     , resourcet >=1.2.4.2 && <2
