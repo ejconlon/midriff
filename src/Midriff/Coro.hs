@@ -7,7 +7,7 @@ import Control.Monad.IO.Class (MonadIO (..))
 import Control.Monad.Identity (Identity)
 import Control.Monad.Morph (MFunctor (..), MMonad (..))
 import Control.Monad.Trans (MonadTrans (..))
-import Data.Void (Void)
+import Data.Void (Void, absurd)
 
 data Done = DoneNo | DoneYes
   deriving stock (Eq, Ord, Show, Enum, Bounded)
@@ -90,6 +90,15 @@ runTermC nat inp out (CoroT c) = go
   lif mc = join (nat mc)
   end = pure . TermEnd
 
+runEffectC :: Monad m => (forall x. n x -> m x) -> CoroT () Void n a -> m a
+runEffectC nat (CoroT c) = go
+ where
+  go = c req rep lif end
+  req = const go
+  rep = absurd
+  lif mc = join (nat mc)
+  end = pure
+
 awaitC :: CoroT i o m i
 awaitC = CoroT (\req _ _ end -> req end)
 
@@ -117,8 +126,8 @@ scanC (F.FoldM step initial extract) = start
         v1 <- step v0 a1
         loop v1
 
-effectC :: Monad m => F.FoldM m i () -> CoroT i () m ()
-effectC (F.FoldM step initial _) = start
+consumeC :: Monad m => F.FoldM m i () -> CoroT i () m ()
+consumeC (F.FoldM step initial _) = start
  where
   start = wrapC $ do
     v0 <- initial
@@ -132,7 +141,7 @@ effectC (F.FoldM step initial _) = start
 
 loopC :: (i -> ListT m o) -> CoroT i o m ()
 loopC f = CoroT $ \req rep lif end ->
-  req (\i -> let (ListT (CoroT c)) = f i in c (const (end ())) rep lif end)
+  req (\i -> let (ListT (CoroT c)) = f i in c (\r -> r ()) rep lif end)
 
 forC :: CoroT i o m a -> CoroT o p m () -> CoroT i p m a
 forC (CoroT x) (CoroT y) = CoroT $ \req rep lif end ->
@@ -142,7 +151,7 @@ forC (CoroT x) (CoroT y) = CoroT $ \req rep lif end ->
 drawC :: CoroT i o m a -> CoroT a o m b -> CoroT i o m b
 drawC (CoroT x) (CoroT y) = CoroT $ \req rep lif end -> undefined
 
-newtype ListT m a = ListT {selectC :: CoroT Void a m ()}
+newtype ListT m a = ListT {selectC :: CoroT () a m ()}
 
 type List = ListT Identity
 

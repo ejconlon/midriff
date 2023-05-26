@@ -8,23 +8,27 @@ import Data.Acquire (Acquire, withAcquire)
 import Data.Functor.Contravariant (Contravariant (..))
 import Data.Functor.Contravariant.Divisible (Decidable (..), Divisible (..))
 import Data.Profunctor (Profunctor (..))
-import Data.Void (absurd)
-import Midriff.Coro (CoroIO, Done (..), effectC, forC, runForeverC)
+import Data.Void (Void, absurd)
+import Midriff.Coro (CoroIO, Done (..), consumeC, forC, runForeverC, yieldC, liftC, awaitC)
 import Optics (A_Traversal, An_AffineFold, Is, Optic', preview, traverseOf)
 
-newtype Input a = Input {inputRecv :: STM (Maybe a)}
+newtype Input i = Input {inputRecv :: STM (Maybe i)}
   deriving (Functor, Applicative, Monad, Alternative) via (MaybeT STM)
 
-instance Semigroup (Input a) where
+instance Semigroup (Input i) where
   (<>) = (<|>)
 
-instance Monoid (Input a) where
+instance Monoid (Input i) where
   mempty = empty
   mappend = (<>)
 
 -- | Can use Lens, Prism, or Iso to filter what input to keep
-inputKeeps :: Is k An_AffineFold => Optic' k is a b -> Input a -> Input b
+inputKeeps :: Is k An_AffineFold => Optic' k is i j -> Input i -> Input j
 inputKeeps optic x = Input (fmap (>>= preview optic) (inputRecv x))
+
+inputC :: Input i -> CoroIO Void i ()
+inputC inp = go where
+  go = liftC (atomically (inputRecv inp)) >>= maybe (pure ()) (\i -> yieldC i >> go)
 
 newtype Output a = Output {outputSend :: a -> STM Done}
 
@@ -48,6 +52,10 @@ instance Decidable Output where
     Left b -> outputSend x b
     Right c -> outputSend y c
 
+outputC :: Output o -> CoroIO o Void ()
+outputC out = go where
+  go = awaitC >>= \o -> liftC (atomically (outputSend out o)) >>= \case { DoneYes -> pure () ; DoneNo -> go }
+
 newtype View a = View {unView :: F.FoldM IO a ()}
 
 viewSink :: (a -> IO ()) -> View a
@@ -68,7 +76,7 @@ viewHandles :: Is k A_Traversal => Optic' k is a b -> View b -> View a
 viewHandles optic (View x) = View (F.handlesM (traverseOf optic) x)
 
 viewC :: View o -> CoroIO o () ()
-viewC = effectC . unView
+viewC = consumeC . unView
 
 runMVC :: Acquire (Input i, CoroIO i o a, View o) -> IO (Maybe a)
 runMVC acq = withAcquire acq $ \(inp, coro, view) ->
