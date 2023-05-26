@@ -117,12 +117,27 @@ scanC (F.FoldM step initial extract) = start
         v1 <- step v0 a1
         loop v1
 
+effectC :: Monad m => F.FoldM m i () -> CoroT i () m ()
+effectC (F.FoldM step initial _) = start
+ where
+  start = wrapC $ do
+    v0 <- initial
+    loop v0
+  loop v0 = do
+    pure $ do
+      a1 <- awaitC
+      wrapC $ do
+        v1 <- step v0 a1
+        loop v1
+
 loopC :: (i -> ListT m o) -> CoroT i o m ()
 loopC f = CoroT $ \req rep lif end ->
   req (\i -> let (ListT (CoroT c)) = f i in c (const (end ())) rep lif end)
 
 forC :: CoroT i o m a -> CoroT o p m () -> CoroT i p m a
-forC (CoroT x) (CoroT y) = CoroT $ \req rep lif end -> undefined
+forC (CoroT x) (CoroT y) = CoroT $ \req rep lif end ->
+  let rep' o = undefined
+  in  x req rep' lif end
 
 drawC :: CoroT i o m a -> CoroT a o m b -> CoroT i o m b
 drawC (CoroT x) (CoroT y) = CoroT $ \req rep lif end -> undefined

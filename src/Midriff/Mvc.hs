@@ -9,10 +9,10 @@ import Data.Functor.Contravariant (Contravariant (..))
 import Data.Functor.Contravariant.Divisible (Decidable (..), Divisible (..))
 import Data.Profunctor (Profunctor (..))
 import Data.Void (absurd)
-import Midriff.Coro (CoroIO, Done (..), forC, runForeverC, scanC)
+import Midriff.Coro (CoroIO, Done (..), effectC, forC, runForeverC)
 import Optics (A_Traversal, An_AffineFold, Is, Optic', preview, traverseOf)
 
-newtype Input a = Input {recv :: STM (Maybe a)}
+newtype Input a = Input {inputRecv :: STM (Maybe a)}
   deriving (Functor, Applicative, Monad, Alternative) via (MaybeT STM)
 
 instance Semigroup (Input a) where
@@ -22,35 +22,36 @@ instance Monoid (Input a) where
   mempty = empty
   mappend = (<>)
 
-keeps :: Is k An_AffineFold => Optic' k is a b -> Input a -> Input b
-keeps optic x = Input (fmap (>>= preview optic) (recv x))
+-- | Can use Lens, Prism, or Iso to filter what input to keep
+inputKeeps :: Is k An_AffineFold => Optic' k is a b -> Input a -> Input b
+inputKeeps optic x = Input (fmap (>>= preview optic) (inputRecv x))
 
-newtype Output a = Output {send :: a -> STM Done}
+newtype Output a = Output {outputSend :: a -> STM Done}
 
 instance Semigroup (Output a) where
-  x <> y = Output (\a -> liftA2 (<>) (send x a) (send y a))
+  x <> y = Output (\a -> liftA2 (<>) (outputSend x a) (outputSend y a))
 
 instance Monoid (Output a) where
   mempty = Output (const (pure DoneNo))
   mappend = (<>)
 
 instance Contravariant Output where
-  contramap f x = Output (send x . f)
+  contramap f x = Output (outputSend x . f)
 
 instance Divisible Output where
-  divide f x y = Output (\a -> let (b, c) = f a in liftA2 (<>) (send x b) (send y c))
+  divide f x y = Output (\a -> let (b, c) = f a in liftA2 (<>) (outputSend x b) (outputSend y c))
   conquer = mempty
 
 instance Decidable Output where
   lose f = Output (absurd . f)
   choose f x y = Output $ \a -> case f a of
-    Left b -> send x b
-    Right c -> send y c
+    Left b -> outputSend x b
+    Right c -> outputSend y c
 
 newtype View a = View {unView :: F.FoldM IO a ()}
 
-sink :: (a -> IO ()) -> View a
-sink = View . F.sink
+viewSink :: (a -> IO ()) -> View a
+viewSink = View . F.sink
 
 instance Contravariant View where
   contramap f (View x) = View (lmap f x)
@@ -62,12 +63,13 @@ instance Monoid (View a) where
   mempty = View mempty
   mappend = (<>)
 
-handles :: Is k A_Traversal => Optic' k is a b -> View b -> View a
-handles optic (View x) = View (F.handlesM (traverseOf optic) x)
+-- | Can use Traversal, Lens, Prism, or Iso to enumerate things to handle
+viewHandles :: Is k A_Traversal => Optic' k is a b -> View b -> View a
+viewHandles optic (View x) = View (F.handlesM (traverseOf optic) x)
 
 viewC :: View o -> CoroIO o () ()
-viewC = scanC . unView
+viewC = effectC . unView
 
 runMVC :: Acquire (Input i, CoroIO i o a, View o) -> IO (Maybe a)
 runMVC acq = withAcquire acq $ \(inp, coro, view) ->
-  runForeverC (atomically (recv inp)) (forC coro (viewC view))
+  runForeverC (atomically (inputRecv inp)) (forC coro (viewC view))
