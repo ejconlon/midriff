@@ -5,6 +5,7 @@ import Control.Foldl qualified as F
 import Control.Monad (ap, join)
 import Control.Monad.IO.Class (MonadIO (..))
 import Control.Monad.Identity (Identity)
+import Control.Monad.Morph (MFunctor (..), MMonad (..))
 import Control.Monad.Trans (MonadTrans (..))
 import Data.Void (Void)
 
@@ -54,6 +55,9 @@ instance MonadTrans (CoroT i o) where
 
 instance MonadIO m => MonadIO (CoroT i o m) where
   liftIO = liftC . liftIO
+
+instance MFunctor (CoroT i o) where
+  hoist nat (CoroT c) = CoroT (\req rep lif end -> c req rep (lif . nat) end)
 
 inMapC :: (j -> i) -> CoroT i o m a -> CoroT j o m a
 inMapC g (CoroT c) = CoroT (\req rep lif end -> c (\r -> req (r . g)) rep lif end)
@@ -123,7 +127,7 @@ forC (CoroT x) (CoroT y) = CoroT $ \req rep lif end -> undefined
 drawC :: CoroT i o m a -> CoroT a o m b -> CoroT i o m b
 drawC (CoroT x) (CoroT y) = CoroT $ \req rep lif end -> undefined
 
-newtype ListT m a = ListT {selectL :: CoroT Void a m ()}
+newtype ListT m a = ListT {selectC :: CoroT Void a m ()}
 
 type List = ListT Identity
 
@@ -156,6 +160,15 @@ instance Semigroup (ListT m a) where
 instance Monoid (ListT m a) where
   mempty = empty
   mappend = (<>)
+
+instance MFunctor ListT where
+  -- hoist :: forall m n (b :: k). Monad m => (forall a. m a -> n a) -> t m b -> t n b
+  hoist nat (ListT x) = ListT (hoist nat x)
+
+instance MMonad ListT where
+  embed spread (ListT (CoroT c)) = ListT $ CoroT $ \req rep lif end ->
+    let lif' act = let (ListT (CoroT d)) = spread act in d req id lif end
+    in  c req rep lif' end
 
 liftL :: Functor m => m a -> ListT m a
 liftL act = ListT (liftC act >>= yieldC)

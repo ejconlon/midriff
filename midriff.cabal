@@ -81,6 +81,7 @@ library
     , free
     , little-rio >=2.0.0 && <3
     , midiot
+    , mmorph
     , mtl
     , optics
     , primitive >=0.7 && <0.9
@@ -134,6 +135,7 @@ executable midriff-exe
     , little-rio >=2.0.0 && <3
     , midiot
     , midriff
+    , mmorph
     , mtl
     , optics
     , primitive >=0.7 && <0.9
@@ -189,6 +191,7 @@ test-suite midriff-test
     , little-rio >=2.0.0 && <3
     , midiot
     , midriff
+    , mmorph
     , mtl
     , optics
     , primitive >=0.7 && <0.9

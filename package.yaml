@@ -38,6 +38,7 @@ dependencies:
 - foldl
 - profunctors
 - free
+- mmorph
 
 default-extensions:
 - BangPatterns
