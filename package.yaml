@@ -35,6 +35,8 @@ dependencies:
 - mtl
 - pipes
 - contravariant
+- foldl
+- profunctors
 
 default-extensions:
 - BangPatterns

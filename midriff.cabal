@@ -76,12 +76,14 @@ library
     , dahdit
     , dahdit-network
     , deepseq >=1.4.4.0 && <2
+    , foldl
     , little-rio >=2.0.0 && <3
     , midiot
     , mtl
     , optics
     , pipes
     , primitive >=0.7 && <0.9
+    , profunctors
     , resourcet >=1.2.4.2 && <2
     , stm >=2.5.0.0 && <3
     , transformers
@@ -126,6 +128,7 @@ executable midriff-exe
     , dahdit
     , dahdit-network
     , deepseq >=1.4.4.0 && <2
+    , foldl
     , little-rio >=2.0.0 && <3
     , midiot
     , midriff
@@ -133,6 +136,7 @@ executable midriff-exe
     , optics
     , pipes
     , primitive >=0.7 && <0.9
+    , profunctors
     , resourcet >=1.2.4.2 && <2
     , stm >=2.5.0.0 && <3
     , transformers
@@ -178,6 +182,7 @@ test-suite midriff-test
     , dahdit
     , dahdit-network
     , deepseq >=1.4.4.0 && <2
+    , foldl
     , hedgehog >=1.0.3 && <2
     , little-rio >=2.0.0 && <3
     , midiot
@@ -186,6 +191,7 @@ test-suite midriff-test
     , optics
     , pipes
     , primitive >=0.7 && <0.9
+    , profunctors
     , resourcet >=1.2.4.2 && <2
     , stm >=2.5.0.0 && <3
     , tasty >=1.2.3 && <2
