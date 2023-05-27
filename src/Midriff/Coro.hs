@@ -5,9 +5,10 @@ import Control.Foldl qualified as F
 import Control.Monad (ap, join)
 import Control.Monad.IO.Class (MonadIO (..))
 import Control.Monad.Identity (Identity)
-import Control.Monad.Morph (MFunctor (..), MMonad (..))
+import Control.Monad.Morph (MFunctor (..))
 import Control.Monad.Trans (MonadTrans (..))
-import Data.Void (Void, absurd)
+import Data.Foldable (toList)
+import Data.Sequence (Seq (..))
 
 data Done = DoneNo | DoneYes
   deriving stock (Eq, Ord, Show, Enum, Bounded)
@@ -27,7 +28,7 @@ newtype CoroT i o m a = CoroT
   { unCoroT
       :: forall r
        . ((i -> r) -> r)
-      -> (o -> r)
+      -> (o -> r -> r)
       -> (m r -> r)
       -> (a -> r)
       -> r
@@ -60,42 +61,36 @@ instance MFunctor (CoroT i o) where
   hoist nat (CoroT c) = CoroT (\req rep lif end -> c req rep (lif . nat) end)
 
 inMapC :: (j -> i) -> CoroT i o m a -> CoroT j o m a
-inMapC g (CoroT c) = CoroT (\req rep lif end -> c (\r -> req (r . g)) rep lif end)
+inMapC g (CoroT c) = CoroT (\req rep lif end -> c (\k -> req (k . g)) rep lif end)
 
 outMapC :: (o -> p) -> CoroT i o m a -> CoroT i p m a
 outMapC f (CoroT c) = CoroT (\req rep lif end -> c req (rep . f) lif end)
 
 bothMapC :: (j -> i) -> (o -> p) -> CoroT i o m a -> CoroT j p m a
-bothMapC g f (CoroT c) = CoroT (\req rep lif end -> c (\r -> req (r . g)) (rep . f) lif end)
+bothMapC g f (CoroT c) = CoroT (\req rep lif end -> c (\k -> req (k . g)) (rep . f) lif end)
 
 joinC :: CoroT i o m (CoroT i o m a) -> CoroT i o m a
 joinC (CoroT c) = CoroT $ \req rep lif end ->
   c req rep lif (\(CoroT d) -> d req rep lif end)
 
-runForeverC :: Monad m => m (Maybe i) -> CoroT i () m a -> m (Maybe a)
-runForeverC inp (CoroT c) = go
- where
-  go = c req rep lif end
-  req r = inp >>= maybe (pure Nothing) r
-  rep _ = go
+runForeverC :: Monad m => m (Maybe i) -> CoroT i o m a -> m (Maybe a)
+runForeverC inp (CoroT c) = c req rep lif end where
+  req k = inp >>= maybe (pure Nothing) k
+  rep _ r = r
   lif = join
   end = pure . Just
 
 runTermC :: Monad m => (forall x. n x -> m x) -> m (Maybe i) -> (o -> m Done) -> CoroT i o n a -> m (Term a)
-runTermC nat inp out (CoroT c) = go
- where
-  go = c req rep lif end
-  req r = inp >>= maybe (pure TermAwait) r
-  rep o = out o >>= \case DoneYes -> pure TermYield; DoneNo -> go
+runTermC nat inp out (CoroT c) = c req rep lif end where
+  req k = inp >>= maybe (pure TermAwait) k
+  rep o r = out o >>= \case { DoneYes -> pure TermYield; DoneNo -> r }
   lif mc = join (nat mc)
   end = pure . TermEnd
 
-runEffectC :: Monad m => (forall x. n x -> m x) -> CoroT () Void n a -> m a
-runEffectC nat (CoroT c) = go
- where
-  go = c req rep lif end
-  req = const go
-  rep = absurd
+runEffectC :: Monad m => (forall x. n x -> m x) -> CoroT () o n a -> m a
+runEffectC nat (CoroT c) = c req rep lif end where
+  req k = k ()
+  rep _ r = r
   lif mc = join (nat mc)
   end = pure
 
@@ -103,7 +98,7 @@ awaitC :: CoroT i o m i
 awaitC = CoroT (\req _ _ end -> req end)
 
 yieldC :: o -> CoroT i o m ()
-yieldC o = CoroT (\_ rep _ _ -> rep o)
+yieldC o = CoroT (\_ rep _ end -> rep o (end ()))
 
 liftC :: Functor m => m a -> CoroT i o m a
 liftC act = CoroT (\_ _ lif end -> lif (fmap end act))
@@ -126,7 +121,7 @@ scanC (F.FoldM step initial extract) = start
         v1 <- step v0 a1
         loop v1
 
-consumeC :: Monad m => F.FoldM m i () -> CoroT i () m ()
+consumeC :: Monad m => F.FoldM m i () -> CoroT i o m ()
 consumeC (F.FoldM step initial _) = start
  where
   start = wrapC $ do
@@ -143,13 +138,28 @@ loopC :: (i -> ListT m o) -> CoroT i o m ()
 loopC f = CoroT $ \req rep lif end ->
   req (\i -> let (ListT (CoroT c)) = f i in c (\r -> r ()) rep lif end)
 
+printC :: Show i => CoroIO i o ()
+printC = awaitC >>= liftIO . print
+
+-- | Run the first coroutine, replacing yields with the second
 forC :: CoroT i o m a -> CoroT o p m () -> CoroT i p m a
 forC (CoroT x) (CoroT y) = CoroT $ \req rep lif end ->
-  let rep' o = undefined
-  in  x req rep' lif end
+  let rep' o r = y (\k -> k o) rep lif (const r)
+  in x req rep' lif end
 
+-- | Run the second coroutine, replacing awaits with the first
 drawC :: CoroT i o m a -> CoroT a o m b -> CoroT i o m b
-drawC (CoroT x) (CoroT y) = CoroT $ \req rep lif end -> undefined
+drawC (CoroT x) (CoroT y) = CoroT $ \req rep lif end ->
+  let req' = x req rep lif
+  in y req' rep lif end
+
+eachC :: Foldable f => f o -> CoroT i o m ()
+eachC fa =
+  let as = toList fa
+  in CoroT $ \_ rep _ end -> go rep end as where
+    go w z = \case
+      [] -> z ()
+      a:as' -> w a (go w z as')
 
 newtype ListT m a = ListT {selectC :: CoroT () a m ()}
 
@@ -189,10 +199,43 @@ instance MFunctor ListT where
   -- hoist :: forall m n (b :: k). Monad m => (forall a. m a -> n a) -> t m b -> t n b
   hoist nat (ListT x) = ListT (hoist nat x)
 
-instance MMonad ListT where
-  embed spread (ListT (CoroT c)) = ListT $ CoroT $ \req rep lif end ->
-    let lif' act = let (ListT (CoroT d)) = spread act in d req id lif end
-    in  c req rep lif' end
-
 liftL :: Functor m => m a -> ListT m a
 liftL act = ListT (liftC act >>= yieldC)
+
+eachL :: Foldable f => f a -> ListT m a
+eachL = ListT . eachC
+
+consL :: a -> ListT m a -> ListT m a
+consL a (ListT x) = ListT (yieldC a >> x)
+
+wrapL :: Functor m => m (ListT m a) -> ListT m a
+wrapL ml = ListT (CoroT (\req rep lif end -> lif (fmap (\(ListT (CoroT c)) -> c req rep lif end) ml)))
+
+reconsL :: Functor m => m (Maybe (a, ListT m a)) -> ListT m a
+reconsL = wrapL . fmap (maybe empty (uncurry consL))
+
+unconsL :: Monad m => ListT m a -> m (Maybe (a, ListT m a))
+unconsL (ListT (CoroT c)) = c req rep lif end where
+  req k = k ()
+  rep a r = pure (Just (a, reconsL r))
+  lif = join
+  end () = pure Nothing
+
+testL :: ListIO Int
+testL = ListT $ do
+  liftIO (print @Int 1)
+  yieldC 1
+  liftIO (print @Int 2)
+  yieldC 2
+  liftIO (print @Int 3)
+  yieldC 3
+  liftIO (print @Int 4)
+
+forceL :: Monad m => ListT m a -> m (Seq a)
+forceL = go Empty where
+  go !acc l0 = do
+    mayPair <- unconsL l0
+    case mayPair of
+      Nothing -> pure acc
+      Just (a, l1) -> go (acc :|> a) l1
+
