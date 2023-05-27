@@ -21,8 +21,8 @@ import Control.Monad ((>=>))
 import Data.Maybe (isJust)
 import Data.Vector (Vector)
 import Data.Vector qualified as V
-import Midriff.Callback (Callback)
-import Midriff.Gate (Gate (..))
+import Midriff.Flag (Done (..))
+import Midriff.Mvc (Output (..))
 
 data Pos = Pos
   { posGen :: !Int
@@ -116,14 +116,14 @@ cursorTryNext (Cursor r rhVar) = do
         fmap (Just . Next dropped) (readTVar (ringBuf r V.! posIndex used))
 
 -- | Flush at most capacity elements. Most useful if you know there are no more writes.
-cursorFlush :: Cursor a -> Callback STM (Next a) -> IO ()
-cursorFlush cur cb = go (ringCap (cursorRing cur))
+cursorFlush :: Cursor a -> Output (Next a) -> IO ()
+cursorFlush cur out = go (ringCap (cursorRing cur))
  where
   go !left = do
     if left == 0
       then pure ()
       else do
-        g <- atomically (cursorTryNext cur >>= maybe (pure GateClosed) cb)
+        g <- atomically (cursorTryNext cur >>= maybe (pure DoneYes) (outputSend out))
         case g of
-          GateOpen -> go (left - 1)
+          DoneNo -> go (left - 1)
           _ -> pure ()

@@ -23,9 +23,8 @@ import Data.Vector.Storable.Mutable (MVector)
 import Data.Vector.Storable.Mutable qualified as VSM
 import Data.Word (Word8)
 import Foreign.ForeignPtr.Unsafe qualified as FPU
-import Midriff.Callback (Callback)
 import Midriff.Config (DeviceConfig (..), Ignores (..), InputConfig (..), PortConfig (..), PortId (..))
-import Midriff.Gate (Gate (..))
+import Midriff.Flag (Done (..))
 import Midriff.Plex (Plex, plexNewU)
 import Midriff.Resource (Manager, managerNew, refNew)
 import Sound.RtMidi
@@ -51,7 +50,7 @@ type InputCallback = InputMsg -> IO ()
 
 newtype OutputAction = OutputAction {runOutputAction :: forall m. MVector (PrimState m) Word8 -> m Int}
 
-type OutputCallback = Callback IO OutputAction
+type OutputCallback = OutputAction -> IO Done
 
 inputOpenDev :: Maybe DeviceConfig -> IO InputDevice
 inputOpenDev mdc = do
@@ -122,7 +121,7 @@ outputCb dev cap = do
   pure $ \act -> do
     used <- runOutputAction act mvec
     when (used > 0) (sendUnsafeMessage dev ptr used)
-    pure GateOpen
+    pure DoneNo
 
 outputPlex :: (MonadResource m, MonadUnliftIO m) => (k -> m OutputArgs) -> m (Plex k OutputDevice)
 outputPlex f = plexNewU (f >=> refNew . outputNew)

@@ -1,5 +1,3 @@
-{-# LANGUAGE DeriveAnyClass #-}
-
 module Midriff.Freq
   ( TimeUnit (..)
   , ScaledDelta
@@ -18,11 +16,10 @@ module Midriff.Freq
   )
 where
 
-import Control.DeepSeq (NFData)
 import Data.Ratio ((%))
 import Data.Word (Word64)
 import GHC.Generics (Generic)
-import Midriff.Time (TimeDelta, assertingNonNegative, timeDeltaFromNanos, timeDeltaToNanos)
+import Midiot.Time (TimeDelta, assertingNonNegative, timeDeltaFromNanos, timeDeltaToNanos)
 
 data TimeUnit
   = TimeUnitNanos
@@ -30,7 +27,6 @@ data TimeUnit
   | TimeUnitMillis
   | TimeUnitSecs
   deriving stock (Eq, Show, Ord, Generic)
-  deriving anyclass (NFData)
 
 data ScaledDelta = ScaledDelta
   { scaledDeltaUnit :: !TimeUnit
@@ -38,7 +34,6 @@ data ScaledDelta = ScaledDelta
   , scaledDeltaRemainder :: !Word64
   }
   deriving stock (Eq, Show, Generic)
-  deriving anyclass (NFData)
 
 scaleFactor :: TimeUnit -> Word64
 scaleFactor unit =
@@ -67,7 +62,6 @@ data Count = Count
   , countPart :: !Double
   }
   deriving stock (Eq, Show, Generic)
-  deriving anyclass (NFData)
 
 instance Semigroup Count where
   Count w1 p1 <> Count w2 p2 = Count (w1 + w2 + wl) p3
@@ -111,7 +105,6 @@ data Freq = Freq
   , freqScaledDelta :: !ScaledDelta
   }
   deriving stock (Eq, Show, Generic)
-  deriving anyclass (NFData)
 
 freqFromFrac :: (Real a, Show a) => a -> TimeUnit -> Freq
 freqFromFrac frac unit =
@@ -130,7 +123,6 @@ data AccEnv = AccEnv
   , accEnvTimeDelta :: !TimeDelta
   }
   deriving stock (Eq, Show, Generic)
-  deriving anyclass (NFData)
 
 newAccEnv :: Freq -> AccEnv
 newAccEnv (Freq c sd) = AccEnv c (scaledToTimeDelta sd)

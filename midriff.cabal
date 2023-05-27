@@ -24,14 +24,12 @@ source-repository head
 
 library
   exposed-modules:
-      Midriff.Callback
       Midriff.Clock
       Midriff.Config
       Midriff.Connect
       Midriff.Control
       Midriff.Coro
-      Midriff.CQueue
-      Midriff.DQueue
+      Midriff.Flag
       Midriff.Freq
       Midriff.Gate
       Midriff.Lock
@@ -40,7 +38,6 @@ library
       Midriff.RateLim
       Midriff.Resource
       Midriff.Ring
-      Midriff.Time
       Midriff.Word
   other-modules:
       Paths_midriff

@@ -9,7 +9,7 @@ where
 
 import Control.Concurrent.STM (STM)
 import Control.Concurrent.STM.TVar (TVar)
-import Midriff.Time (MonoTime, TimeDelta)
+import Midiot.Time (MonoTime, TimeDelta)
 
 data RateLim = RateLim
   { rlPeriod :: !TimeDelta

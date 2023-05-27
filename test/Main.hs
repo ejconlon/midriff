@@ -1,8 +1,8 @@
 module Main (main) where
 
 import Data.Foldable (for_)
+import Midiot.Time (timeDeltaFromFracSecs, timeDeltaFromNanos)
 import Midriff.Freq (TimeUnit (..), countFromFrac, countPerPeriod, freqFromFrac, scaledUnit, singlePeriod)
-import Midriff.Time (timeDeltaFromFracSecs, timeDeltaFromNanos)
 import Midriff.Word (joinSplitWord8, joinWord14, lsbSplitWord8, lsbWord14, msbSplitWord8, msbWord14)
 import Test.Tasty (TestTree, defaultMain, testGroup)
 import Test.Tasty.HUnit (testCase, (@?=))
