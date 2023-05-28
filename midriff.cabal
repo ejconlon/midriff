@@ -66,7 +66,7 @@ library
       TypeFamilies
   ghc-options: -Wall -Wcompat -Widentities -Wincomplete-record-updates -Wincomplete-uni-patterns -Wpartial-fields -Wredundant-constraints -fno-warn-unused-top-binds
   build-depends:
-      RtMidi >=0.6.1.0 && <1
+      RtMidi >=0.7.0.0 && <1
     , async >=2.2.2 && <3
     , base >=4.12 && <5
     , containers >=0.6.2.1 && <1
@@ -119,7 +119,7 @@ executable midriff-exe
       TypeFamilies
   ghc-options: -Wall -Wcompat -Widentities -Wincomplete-record-updates -Wincomplete-uni-patterns -Wpartial-fields -Wredundant-constraints -fno-warn-unused-top-binds -threaded -rtsopts -with-rtsopts=-N
   build-depends:
-      RtMidi >=0.6.1.0 && <1
+      RtMidi >=0.7.0.0 && <1
     , async >=2.2.2 && <3
     , base >=4.12 && <5
     , containers >=0.6.2.1 && <1
@@ -174,7 +174,7 @@ test-suite midriff-test
       TypeFamilies
   ghc-options: -Wall -Wcompat -Widentities -Wincomplete-record-updates -Wincomplete-uni-patterns -Wpartial-fields -Wredundant-constraints -fno-warn-unused-top-binds -threaded -rtsopts -with-rtsopts=-N
   build-depends:
-      RtMidi >=0.6.1.0 && <1
+      RtMidi >=0.7.0.0 && <1
     , async >=2.2.2 && <3
     , base >=4.12 && <5
     , containers >=0.6.2.1 && <1

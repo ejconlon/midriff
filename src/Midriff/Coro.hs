@@ -115,6 +115,12 @@ foldC (F.FoldM step initial _) = start
         v1 <- step v0 a1
         loop v1
 
+-- purelyC :: F.Fold o a -> CoroT () o m () -> m a
+-- purelyC = undefined
+
+-- impurelyC :: F.FoldM m o a -> CoroT () o m () -> m a
+-- impurelyC = undefined
+
 loopC :: (i -> ListT m o) -> CoroT i o m ()
 loopC f = CoroT $ \req rep lif end ->
   req (\i -> let (ListT (CoroT c)) = f i in c (\r -> r ()) rep lif end)
