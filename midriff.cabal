@@ -75,8 +75,8 @@ library
     , dahdit
     , dahdit-network
     , deepseq >=1.4.4.0 && <2
+    , exceptions
     , foldl
-    , free
     , little-rio >=2.0.0 && <3
     , midiot
     , mmorph
@@ -128,8 +128,8 @@ executable midriff-exe
     , dahdit
     , dahdit-network
     , deepseq >=1.4.4.0 && <2
+    , exceptions
     , foldl
-    , free
     , little-rio >=2.0.0 && <3
     , midiot
     , midriff
@@ -183,8 +183,8 @@ test-suite midriff-test
     , dahdit
     , dahdit-network
     , deepseq >=1.4.4.0 && <2
+    , exceptions
     , foldl
-    , free
     , hedgehog >=1.0.3 && <2
     , little-rio >=2.0.0 && <3
     , midiot

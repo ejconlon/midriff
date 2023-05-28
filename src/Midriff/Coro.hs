@@ -1,3 +1,5 @@
+{-# LANGUAGE UndecidableInstances #-}
+
 module Midriff.Coro where
 
 import Control.Applicative (Alternative (..))
@@ -9,6 +11,7 @@ import Control.Monad.Morph (MFunctor (..))
 import Control.Monad.Trans (MonadTrans (..))
 import Data.Foldable (toList)
 import Data.Sequence (Seq (..))
+import Control.Monad.Trans.Resource (MonadResource (..))
 
 newtype CoroT i o m a = CoroT
   { unCoroT
@@ -45,6 +48,9 @@ instance MonadIO m => MonadIO (CoroT i o m) where
 
 instance MFunctor (CoroT i o) where
   hoist nat (CoroT c) = CoroT (\req rep lif end -> c req rep (lif . nat) end)
+
+instance MonadResource m => MonadResource (CoroT i o m) where
+  liftResourceT = liftC . liftResourceT
 
 inMapC :: (j -> i) -> CoroT i o m a -> CoroT j o m a
 inMapC g (CoroT c) = CoroT (\req rep lif end -> c (\k -> req (k . g)) rep lif end)
@@ -149,6 +155,9 @@ eachC fa =
     [] -> z ()
     a : as' -> w a (go w z as')
 
+isolateC :: Monad m => Int -> CoroT i o m () -> CoroT i o m ()
+isolateC = undefined
+
 newtype ListT m a = ListT {selectC :: CoroT () a m ()}
 
 type List = ListT Identity
@@ -202,6 +211,7 @@ wrapL ml = ListT (CoroT (\req rep lif end -> lif (fmap (\(ListT (CoroT c)) -> c 
 reconsL :: Functor m => m (Maybe (a, ListT m a)) -> ListT m a
 reconsL = wrapL . fmap (maybe empty (uncurry consL))
 
+-- Expensive, avoid?
 unconsL :: Monad m => ListT m a -> m (Maybe (a, ListT m a))
 unconsL (ListT (CoroT c)) = c req rep lif end
  where

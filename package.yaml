@@ -33,12 +33,11 @@ dependencies:
 - optics
 - transformers
 - mtl
-# - pipes
 - contravariant
 - foldl
 - profunctors
-- free
 - mmorph
+- exceptions
 
 default-extensions:
 - BangPatterns
