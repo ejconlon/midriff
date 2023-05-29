@@ -51,11 +51,11 @@ import Data.Void (Void, absurd)
 newtype CoroT i o m a = CoroT
   { unCoroT
       :: forall r
-       . ((Maybe i -> r) -> r) --^ await
-      -> (o -> r -> r)         --^ yield
-      -> (m r -> r)            --^ lift
-      -> (a -> r)              --^ end
-      -> m ()                  --^ cleanup
+       . ((Maybe i -> r) -> r) -- ^ await
+      -> (o -> r -> r)         -- ^ yield
+      -> (m r -> r)            -- ^ lift
+      -> (a -> r)              -- ^ end
+      -> m ()                  -- ^ cleanup
       -> r
   }
 
