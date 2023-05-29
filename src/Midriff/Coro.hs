@@ -1,6 +1,38 @@
-{-# LANGUAGE UndecidableInstances #-}
+-- {-# LANGUAGE UndecidableInstances #-}
 
-module Midriff.Coro where
+module Midriff.Coro
+  ( CoroT
+  , Coro
+  , CoroIO
+  , inMapC
+  , outMapC
+  , bothMapC
+  , joinC
+  , runNatC
+  , runC
+  , awaitC
+  , yieldC
+  , liftC
+  , wrapC
+  , scanC
+  , foldC
+  , loopC
+  , printC
+  , forC
+  , drawC
+  , catC
+  , fuseC
+  , (.|)
+  , eachC
+  , ListT (..)
+  , List
+  , ListIO
+  , liftL
+  , eachL
+  , consL
+  , wrapL
+  )
+where
 
 import Control.Applicative (Alternative (..))
 import Control.Foldl qualified as F
@@ -22,6 +54,18 @@ newtype CoroT i o m a = CoroT
       -> (a -> r)
       -> r
   }
+
+data F i o m a r
+  = FAwait (Maybe i -> r)
+  | FYield o r
+  | FLift (m r)
+  | FEnd a
+  deriving stock (Functor)
+
+newtype X i o m a = X {unX :: F i o m a (X i o m a)}
+
+reflectC :: CoroT i o m a -> X i o m a
+reflectC (CoroT c) = c (X . FAwait) (\o -> X . FYield o) (X . FLift) (X . FEnd)
 
 type Coro i o = CoroT i o Identity
 
@@ -156,19 +200,38 @@ drawC (CoroT x) (CoroT y) = CoroT $ \req rep lif end ->
   let req' k = x req rep lif (k . Just)
   in  y req' rep lif end
 
+-- | This is an identity of fuseC
 catC :: CoroT a a m ()
-catC = go where
+catC = go
+ where
   go = awaitC >>= maybe (pure ()) yieldC >> go
 
--- fuseC :: CoroT a b m () -> CoroT b c m r -> CoroT a c m r
--- fuseC (CoroT x) (CoroT y) = CoroT $ \req rep lif end ->
---   let req' k = x req (\o r -> k (Just o) (Just r)) lif end
---   in y req' rep lif end
+fuseC :: Functor m => CoroT a b m () -> CoroT b c m r -> CoroT a c m r
+fuseC c1 c2 = CoroT $ \req rep lif end ->
+  let x1 = reflectC c1
+      x2 = reflectC c2
+      go1 (X z1) k = case z1 of
+        FAwait j -> req (\mi -> go1 (j mi) k)
+        FYield o r -> go2 r (k (Just o))
+        FLift mr -> lif (fmap (`go1` k) mr)
+        FEnd _ -> go3 (k Nothing)
+      go2 y1 (X z2) = case z2 of
+        FAwait k -> go1 y1 k
+        FYield o r -> rep o (go2 y1 r)
+        FLift mr -> lif (fmap (go2 y1) mr)
+        FEnd a -> end a
+      go3 (X z2) = case z2 of
+        FAwait k -> go3 (k Nothing)
+        FYield o r -> rep o (go3 r)
+        FLift mr -> lif (fmap go3 mr)
+        FEnd a -> end a
+  in  go2 x1 x2
 
--- (.|) :: CoroT a b m () -> CoroT b c m r -> CoroT a c m r
--- (.|) = fuseC
--- {-# INLINE (.|) #-}
--- infixr 2 .|
+(.|) :: Functor m => CoroT a b m () -> CoroT b c m r -> CoroT a c m r
+(.|) = fuseC
+{-# INLINE (.|) #-}
+
+infixr 2 .|
 
 eachC :: Foldable f => f o -> CoroT i o m ()
 eachC fa = CoroT $ \_ rep _ end ->
@@ -227,8 +290,8 @@ consL a (ListT x) = ListT (yieldC a >> x)
 wrapL :: Functor m => m (ListT m a) -> ListT m a
 wrapL ml = ListT (CoroT (\req rep lif end -> lif (fmap (\(ListT (CoroT c)) -> c req rep lif end) ml)))
 
-reconsL :: Functor m => m (Maybe (a, ListT m a)) -> ListT m a
-reconsL = wrapL . fmap (maybe empty (uncurry consL))
+-- reconsL :: Functor m => m (Maybe (a, ListT m a)) -> ListT m a
+-- reconsL = wrapL . fmap (maybe empty (uncurry consL))
 
 -- -- Expensive, avoid?
 -- unconsL :: Monad m => ListT m a -> m (Maybe (a, ListT m a))
