@@ -9,16 +9,10 @@ import Control.Monad.IO.Class (MonadIO (..))
 import Control.Monad.Identity (Identity)
 import Control.Monad.Morph (MFunctor (..))
 import Control.Monad.Trans (MonadTrans (..))
+import Control.Monad.Trans.Resource (MonadResource (..))
 import Data.Foldable (toList)
 import Data.Sequence (Seq (..))
-import Control.Monad.Trans.Resource (MonadResource (..))
 import Data.Void (Void, absurd)
-import Control.Monad.State.Strict (State, runState, MonadState)
-
-data S i o = SHaveInput !i | SNeedOutput !o | SRunning
-  deriving stock (Eq, Ord, Show)
-
-type M i o = State (S i o)
 
 newtype CoroT i o m a = CoroT
   { unCoroT
@@ -72,11 +66,20 @@ joinC :: CoroT i o m (CoroT i o m a) -> CoroT i o m a
 joinC (CoroT c) = CoroT $ \req rep lif end ->
   c req rep lif (\(CoroT d) -> d req rep lif end)
 
-runC :: Monad m => (forall x. n x -> m x) -> CoroT () Void n a -> m a
-runC nat (CoroT c) = c req rep lif end where
+runNatC :: Monad m => (forall x. n x -> m x) -> CoroT () Void n a -> m a
+runNatC nat (CoroT c) = c req rep lif end
+ where
   req k = k (Just ())
   rep v _ = absurd v
   lif = join . nat
+  end = pure
+
+runC :: Monad m => CoroT () Void m a -> m a
+runC (CoroT c) = c req rep lif end
+ where
+  req k = k (Just ())
+  rep v _ = absurd v
+  lif = join
   end = pure
 
 awaitC :: CoroT i o m (Maybe i)
@@ -139,28 +142,23 @@ printC :: Show i => CoroIO i o ()
 printC = awaitC >>= maybe (pure ()) (liftIO . print)
 
 -- | Run the first coroutine, replacing yields with the second
-forC :: CoroT i o m a -> CoroT o p m () -> CoroT i p m a
-forC (CoroT x) (CoroT y) = CoroT $ \req rep lif end ->
-  -- let rep' o r = y (\k -> k (Just o)) rep lif (const r)
-  -- in  x req rep' lif end
-  undefined
+forC :: CoroT i o m a -> (o -> CoroT i p m ()) -> CoroT i p m a
+forC (CoroT x) f = CoroT $ \req rep lif end ->
+  let rep' o r = let (CoroT y) = f o in y req rep lif (const r)
+  in  x req rep' lif end
 
 -- | Run the second coroutine, replacing awaits with the first
 drawC :: CoroT i o m a -> CoroT a o m b -> CoroT i o m b
 drawC (CoroT x) (CoroT y) = CoroT $ \req rep lif end ->
-  -- let req' = x req rep lif
-  -- in  y req' rep lif end
-  undefined
+  let req' k = x req rep lif (k . Just)
+  in  y req' rep lif end
 
 eachC :: Foldable f => f o -> CoroT i o m ()
 eachC fa = CoroT $ \_ rep _ end ->
   let go = \case
         [] -> end ()
         a : as' -> rep a (go as')
-  in go (toList fa)
-
-isolateC :: Monad m => Int -> CoroT i o m a -> CoroT i o m a
-isolateC = undefined
+  in  go (toList fa)
 
 newtype ListT m a = ListT {selectC :: CoroT () a m ()}
 
@@ -177,7 +175,7 @@ instance Applicative (ListT m) where
 
 instance Monad (ListT m) where
   return = pure
-  ListT x >>= f = ListT (forC x (loopC f))
+  ListT x >>= f = ListT (forC x (selectC . f))
 
 instance MonadTrans ListT where
   lift = liftL
@@ -212,23 +210,23 @@ consL a (ListT x) = ListT (yieldC a >> x)
 wrapL :: Functor m => m (ListT m a) -> ListT m a
 wrapL ml = ListT (CoroT (\req rep lif end -> lif (fmap (\(ListT (CoroT c)) -> c req rep lif end) ml)))
 
--- reconsL :: Functor m => m (Maybe (a, ListT m a)) -> ListT m a
--- reconsL = wrapL . fmap (maybe empty (uncurry consL))
+reconsL :: Functor m => m (Maybe (a, ListT m a)) -> ListT m a
+reconsL = wrapL . fmap (maybe empty (uncurry consL))
 
--- -- Expensive, avoid?
--- unconsL :: Monad m => ListT m a -> m (Maybe (a, ListT m a))
--- unconsL (ListT (CoroT c)) = c req rep lif end
---  where
---   req k = k ()
---   rep a r = pure (Just (a, reconsL r))
---   lif = join
---   end () = pure Nothing
+-- Expensive, avoid?
+unconsL :: Monad m => ListT m a -> m (Maybe (a, ListT m a))
+unconsL (ListT (CoroT c)) = c req rep lif end
+ where
+  req k = k (Just ())
+  rep a r = pure (Just (a, reconsL r))
+  lif = join
+  end () = pure Nothing
 
--- forceL :: Monad m => ListT m a -> m (Seq a)
--- forceL = go Empty
---  where
---   go !acc l0 = do
---     mayPair <- unconsL l0
---     case mayPair of
---       Nothing -> pure acc
---       Just (a, l1) -> go (acc :|> a) l1
+forceL :: Monad m => ListT m a -> m (Seq a)
+forceL = go Empty
+ where
+  go !acc l0 = do
+    mayPair <- unconsL l0
+    case mayPair of
+      Nothing -> pure acc
+      Just (a, l1) -> go (acc :|> a) l1
