@@ -12,11 +12,18 @@ import Control.Monad.Trans (MonadTrans (..))
 import Data.Foldable (toList)
 import Data.Sequence (Seq (..))
 import Control.Monad.Trans.Resource (MonadResource (..))
+import Data.Void (Void, absurd)
+import Control.Monad.State.Strict (State, runState, MonadState)
+
+data S i o = SHaveInput !i | SNeedOutput !o | SRunning
+  deriving stock (Eq, Ord, Show)
+
+type M i o = State (S i o)
 
 newtype CoroT i o m a = CoroT
   { unCoroT
       :: forall r
-       . ((i -> r) -> r)
+       . ((Maybe i -> r) -> r)
       -> (o -> r -> r)
       -> (m r -> r)
       -> (a -> r)
@@ -53,35 +60,26 @@ instance MonadResource m => MonadResource (CoroT i o m) where
   liftResourceT = liftC . liftResourceT
 
 inMapC :: (j -> i) -> CoroT i o m a -> CoroT j o m a
-inMapC g (CoroT c) = CoroT (\req rep lif end -> c (\k -> req (k . g)) rep lif end)
+inMapC g (CoroT c) = CoroT (\req rep lif end -> c (\k -> req (k . fmap g)) rep lif end)
 
 outMapC :: (o -> p) -> CoroT i o m a -> CoroT i p m a
 outMapC f (CoroT c) = CoroT (\req rep lif end -> c req (rep . f) lif end)
 
 bothMapC :: (j -> i) -> (o -> p) -> CoroT i o m a -> CoroT j p m a
-bothMapC g f (CoroT c) = CoroT (\req rep lif end -> c (\k -> req (k . g)) (rep . f) lif end)
+bothMapC g f (CoroT c) = CoroT (\req rep lif end -> c (\k -> req (k . fmap g)) (rep . f) lif end)
 
 joinC :: CoroT i o m (CoroT i o m a) -> CoroT i o m a
 joinC (CoroT c) = CoroT $ \req rep lif end ->
   c req rep lif (\(CoroT d) -> d req rep lif end)
 
-runForeverC :: Monad m => (forall x. n x -> m x) -> m (Maybe i) -> CoroT i o n a -> m (Maybe a)
-runForeverC nat inp (CoroT c) = c req rep lif end
- where
-  req k = inp >>= maybe (pure Nothing) k
-  rep _ r = r
+runC :: Monad m => (forall x. n x -> m x) -> CoroT () Void n a -> m a
+runC nat (CoroT c) = c req rep lif end where
+  req k = k (Just ())
+  rep v _ = absurd v
   lif = join . nat
-  end = pure . Just
-
-runEffectC :: Monad m => (forall x. n x -> m x) -> CoroT () o n a -> m a
-runEffectC nat (CoroT c) = c req rep lif end
- where
-  req k = k ()
-  rep _ r = r
-  lif mc = join (nat mc)
   end = pure
 
-awaitC :: CoroT i o m i
+awaitC :: CoroT i o m (Maybe i)
 awaitC = CoroT (\req _ _ end -> req end)
 
 yieldC :: o -> CoroT i o m ()
@@ -93,7 +91,7 @@ liftC act = CoroT (\_ _ lif end -> lif (fmap end act))
 wrapC :: Functor m => m (CoroT i o m a) -> CoroT i o m a
 wrapC mc = CoroT (\req rep lif end -> lif (fmap (\(CoroT c) -> c req rep lif end) mc))
 
-scanC :: Monad m => F.FoldM m i o -> CoroT i o m ()
+scanC :: Monad m => F.FoldM m i o -> CoroT i o m o
 scanC (F.FoldM step initial extract) = start
  where
   start = wrapC $ do
@@ -103,23 +101,27 @@ scanC (F.FoldM step initial extract) = start
     b0 <- extract v0
     pure $ do
       yieldC b0
-      a1 <- awaitC
-      wrapC $ do
-        v1 <- step v0 a1
-        loop v1
+      ma1 <- awaitC
+      case ma1 of
+        Nothing -> pure b0
+        Just a1 -> wrapC $ do
+          v1 <- step v0 a1
+          loop v1
 
-foldC :: Monad m => F.FoldM m i () -> CoroT i o m ()
-foldC (F.FoldM step initial _) = start
+foldC :: Monad m => F.FoldM m i o -> CoroT i o m o
+foldC (F.FoldM step initial extract) = start
  where
   start = wrapC $ do
     v0 <- initial
     loop v0
   loop v0 = do
     pure $ do
-      a1 <- awaitC
-      wrapC $ do
-        v1 <- step v0 a1
-        loop v1
+      ma1 <- awaitC
+      case ma1 of
+        Nothing -> liftC (extract v0)
+        Just a1 -> wrapC $ do
+          v1 <- step v0 a1
+          loop v1
 
 -- purelyC :: F.Fold o a -> CoroT () o m () -> m a
 -- purelyC = undefined
@@ -129,33 +131,35 @@ foldC (F.FoldM step initial _) = start
 
 loopC :: (i -> ListT m o) -> CoroT i o m ()
 loopC f = CoroT $ \req rep lif end ->
-  req (\i -> let (ListT (CoroT c)) = f i in c (\r -> r ()) rep lif end)
+  req $ \case
+    Nothing -> end ()
+    Just i -> let (ListT (CoroT c)) = f i in c (\r -> r (Just ())) rep lif end
 
 printC :: Show i => CoroIO i o ()
-printC = awaitC >>= liftIO . print
+printC = awaitC >>= maybe (pure ()) (liftIO . print)
 
 -- | Run the first coroutine, replacing yields with the second
 forC :: CoroT i o m a -> CoroT o p m () -> CoroT i p m a
 forC (CoroT x) (CoroT y) = CoroT $ \req rep lif end ->
-  let rep' o r = y (\k -> k o) rep lif (const r)
-  in  x req rep' lif end
+  -- let rep' o r = y (\k -> k (Just o)) rep lif (const r)
+  -- in  x req rep' lif end
+  undefined
 
 -- | Run the second coroutine, replacing awaits with the first
 drawC :: CoroT i o m a -> CoroT a o m b -> CoroT i o m b
 drawC (CoroT x) (CoroT y) = CoroT $ \req rep lif end ->
-  let req' = x req rep lif
-  in  y req' rep lif end
+  -- let req' = x req rep lif
+  -- in  y req' rep lif end
+  undefined
 
 eachC :: Foldable f => f o -> CoroT i o m ()
-eachC fa =
-  let as = toList fa
-  in  CoroT $ \_ rep _ end -> go rep end as
- where
-  go w z = \case
-    [] -> z ()
-    a : as' -> w a (go w z as')
+eachC fa = CoroT $ \_ rep _ end ->
+  let go = \case
+        [] -> end ()
+        a : as' -> rep a (go as')
+  in go (toList fa)
 
-isolateC :: Monad m => Int -> CoroT i o m () -> CoroT i o m ()
+isolateC :: Monad m => Int -> CoroT i o m a -> CoroT i o m a
 isolateC = undefined
 
 newtype ListT m a = ListT {selectC :: CoroT () a m ()}
@@ -208,23 +212,23 @@ consL a (ListT x) = ListT (yieldC a >> x)
 wrapL :: Functor m => m (ListT m a) -> ListT m a
 wrapL ml = ListT (CoroT (\req rep lif end -> lif (fmap (\(ListT (CoroT c)) -> c req rep lif end) ml)))
 
-reconsL :: Functor m => m (Maybe (a, ListT m a)) -> ListT m a
-reconsL = wrapL . fmap (maybe empty (uncurry consL))
+-- reconsL :: Functor m => m (Maybe (a, ListT m a)) -> ListT m a
+-- reconsL = wrapL . fmap (maybe empty (uncurry consL))
 
--- Expensive, avoid?
-unconsL :: Monad m => ListT m a -> m (Maybe (a, ListT m a))
-unconsL (ListT (CoroT c)) = c req rep lif end
- where
-  req k = k ()
-  rep a r = pure (Just (a, reconsL r))
-  lif = join
-  end () = pure Nothing
+-- -- Expensive, avoid?
+-- unconsL :: Monad m => ListT m a -> m (Maybe (a, ListT m a))
+-- unconsL (ListT (CoroT c)) = c req rep lif end
+--  where
+--   req k = k ()
+--   rep a r = pure (Just (a, reconsL r))
+--   lif = join
+--   end () = pure Nothing
 
-forceL :: Monad m => ListT m a -> m (Seq a)
-forceL = go Empty
- where
-  go !acc l0 = do
-    mayPair <- unconsL l0
-    case mayPair of
-      Nothing -> pure acc
-      Just (a, l1) -> go (acc :|> a) l1
+-- forceL :: Monad m => ListT m a -> m (Seq a)
+-- forceL = go Empty
+--  where
+--   go !acc l0 = do
+--     mayPair <- unconsL l0
+--     case mayPair of
+--       Nothing -> pure acc
+--       Just (a, l1) -> go (acc :|> a) l1
