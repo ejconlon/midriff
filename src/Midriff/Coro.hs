@@ -24,6 +24,8 @@ module Midriff.Coro
   , fuseC
   , (.|)
   , eachC
+  , bracketC
+  , bracketC_
   , ListT (..)
   , List
   , ListIO
@@ -41,48 +43,38 @@ import Control.Monad.IO.Class (MonadIO (..))
 import Control.Monad.Identity (Identity)
 import Control.Monad.Morph (MFunctor (..))
 import Control.Monad.Trans (MonadTrans (..))
-import Control.Monad.Trans.Resource (MonadResource (..))
+import Control.Monad.Trans.Resource (MonadResource (..), allocate, release, allocate_, register)
 import Data.Foldable (toList)
+import Data.Functor ((<&>))
 import Data.Void (Void, absurd)
 
 newtype CoroT i o m a = CoroT
   { unCoroT
       :: forall r
-       . ((Maybe i -> r) -> r)
-      -> (o -> r -> r)
-      -> (m r -> r)
-      -> (a -> r)
+       . ((Maybe i -> r) -> r) --^ await
+      -> (o -> r -> r)         --^ yield
+      -> (m r -> r)            --^ lift
+      -> (a -> r)              --^ end
+      -> m ()                  --^ cleanup
       -> r
   }
-
-data F i o m a r
-  = FAwait (Maybe i -> r)
-  | FYield o r
-  | FLift (m r)
-  | FEnd a
-  deriving stock (Functor)
-
-newtype X i o m a = X {unX :: F i o m a (X i o m a)}
-
-reflectC :: CoroT i o m a -> X i o m a
-reflectC (CoroT c) = c (X . FAwait) (\o -> X . FYield o) (X . FLift) (X . FEnd)
 
 type Coro i o = CoroT i o Identity
 
 type CoroIO i o = CoroT i o IO
 
 instance Functor (CoroT i o m) where
-  fmap f (CoroT c) = CoroT (\req rep lif end -> c req rep lif (end . f))
+  fmap f (CoroT c) = CoroT (\req rep lif end cle -> c req rep lif (end . f) cle)
 
 instance Applicative (CoroT i o m) where
-  pure a = CoroT (\_ _ _ end -> end a)
+  pure a = CoroT (\_ _ _ end cle -> lif (end a <$ cle))
   (<*>) = ap
 
 instance Monad (CoroT i o m) where
   return = pure
-  CoroT c >>= f = CoroT $ \req rep lif end ->
-    let end' a = let (CoroT d) = f a in d req rep lif end
-    in  c req rep lif end'
+  CoroT c >>= f = CoroT $ \req rep lif end cle ->
+    let end' a = let (CoroT d) = f a in d req rep lif end (pure ())
+    in  c req rep lif end' cle
 
 instance MonadTrans (CoroT i o) where
   lift = liftC
@@ -91,7 +83,7 @@ instance MonadIO m => MonadIO (CoroT i o m) where
   liftIO = liftC . liftIO
 
 instance MFunctor (CoroT i o) where
-  hoist nat (CoroT c) = CoroT (\req rep lif end -> c req rep (lif . nat) end)
+  hoist nat (CoroT c) = CoroT (\req rep lif end cle -> c req rep (lif . nat) end (nat cle))
 
 instance MonadResource m => MonadResource (CoroT i o m) where
   liftResourceT = liftC . liftResourceT
@@ -175,6 +167,7 @@ foldC (F.FoldM step initial extract) = start
 -- impurelyC :: F.FoldM m o a -> CoroT () o m () -> m a
 -- impurelyC = undefined
 
+-- TODO generalize to coro
 loopC :: (i -> ListT m o) -> CoroT i o m ()
 loopC f = CoroT $ \req rep lif end ->
   req $ \case
@@ -206,6 +199,20 @@ catC = go
  where
   go = awaitC >>= maybe (pure ()) yieldC >> go
 
+data F i o m a r
+  = FAwait (Maybe i -> r)
+  | FYield o r
+  | FLift (m r)
+  | FEnd a
+  deriving stock (Functor)
+
+newtype X i o m a = X {unX :: F i o m a (X i o m a)}
+
+reflectC :: CoroT i o m a -> X i o m a
+reflectC (CoroT c) = c (X . FAwait) (\o -> X . FYield o) (X . FLift) (X . FEnd)
+
+-- | Run the second coroutine until blocked on await, then run the first
+-- to respond; continuing until the second terminates.
 fuseC :: Functor m => CoroT a b m () -> CoroT b c m r -> CoroT a c m r
 fuseC c1 c2 = CoroT $ \req rep lif end ->
   let x1 = reflectC c1
@@ -227,6 +234,7 @@ fuseC c1 c2 = CoroT $ \req rep lif end ->
         FEnd a -> end a
   in  go2 x1 x2
 
+-- | An inline synonym for 'fuseC'
 (.|) :: Functor m => CoroT a b m () -> CoroT b c m r -> CoroT a c m r
 (.|) = fuseC
 {-# INLINE (.|) #-}
@@ -240,7 +248,29 @@ eachC fa = CoroT $ \_ rep _ end ->
         a : as' -> rep a (go as')
   in  go (toList fa)
 
-newtype ListT m a = ListT {selectC :: CoroT () a m ()}
+bracketC :: MonadResource m => IO a -> (a -> IO ()) -> (a -> CoroT i o m b) -> CoroT i o m b
+bracketC acq rel use = wrapC $ allocate acq rel <&> \(key, a) ->
+  CoroT $ \req rep lif end ->
+    let (CoroT c) = use a
+        end' b = lif (end b <$ liftIO (release key))
+    in c req rep lif end'
+
+bracketC_ :: MonadResource m => IO a -> IO () -> CoroT i o m b -> CoroT i o m b
+bracketC_ acq rel (CoroT c) = wrapC $ allocate_ acq rel <&> \key ->
+  CoroT $ \req rep lif end ->
+    let end' b = lif (end b <$ liftIO (release key))
+    in c req rep lif end'
+
+cleanupC :: MonadResource m => IO () -> CoroT i o m b -> CoroT i o m b
+cleanupC rel (CoroT c) = wrapC $ register rel <&> \key ->
+  CoroT $ \req rep lif end ->
+    let end' b = lif (end b <$ liftIO (release key))
+    in c req rep lif end'
+
+-- teeC :: CoroT i Void m () -> CoroT i i m ()
+-- teeC = undefined
+
+newtype ListT m a = ListT {enumerateC :: CoroT () a m ()}
 
 type List = ListT Identity
 
@@ -255,7 +285,7 @@ instance Applicative (ListT m) where
 
 instance Monad (ListT m) where
   return = pure
-  ListT x >>= f = ListT (forC x (selectC . f))
+  ListT x >>= f = ListT (forC x (enumerateC . f))
 
 instance MonadTrans ListT where
   lift = liftL
