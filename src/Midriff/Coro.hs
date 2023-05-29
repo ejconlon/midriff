@@ -55,7 +55,6 @@ newtype CoroT i o m a = CoroT
       -> (o -> r -> r)         -- ^ yield
       -> (m r -> r)            -- ^ lift
       -> (a -> r)              -- ^ end
-      -> m ()                  -- ^ cleanup
       -> r
   }
 
@@ -64,17 +63,17 @@ type Coro i o = CoroT i o Identity
 type CoroIO i o = CoroT i o IO
 
 instance Functor (CoroT i o m) where
-  fmap f (CoroT c) = CoroT (\req rep lif end cle -> c req rep lif (end . f) cle)
+  fmap f (CoroT c) = CoroT (\req rep lif end -> c req rep lif (end . f))
 
 instance Applicative (CoroT i o m) where
-  pure a = CoroT (\_ _ _ end cle -> lif (end a <$ cle))
+  pure a = CoroT (\_ _ _ end -> end a)
   (<*>) = ap
 
 instance Monad (CoroT i o m) where
   return = pure
-  CoroT c >>= f = CoroT $ \req rep lif end cle ->
-    let end' a = let (CoroT d) = f a in d req rep lif end (pure ())
-    in  c req rep lif end' cle
+  CoroT c >>= f = CoroT $ \req rep lif end ->
+    let end' a = let (CoroT d) = f a in d req rep lif end
+    in  c req rep lif end'
 
 instance MonadTrans (CoroT i o) where
   lift = liftC
@@ -83,7 +82,7 @@ instance MonadIO m => MonadIO (CoroT i o m) where
   liftIO = liftC . liftIO
 
 instance MFunctor (CoroT i o) where
-  hoist nat (CoroT c) = CoroT (\req rep lif end cle -> c req rep (lif . nat) end (nat cle))
+  hoist nat (CoroT c) = CoroT (\req rep lif end -> c req rep (lif . nat) end)
 
 instance MonadResource m => MonadResource (CoroT i o m) where
   liftResourceT = liftC . liftResourceT
