@@ -330,8 +330,43 @@ zipWithSourceC f c1 c2 = CoroT $ \_ rep lif end ->
 seqSourceC :: (Traversable f, Functor m) => f (CoroT () o m ()) -> CoroT () (f o) m ()
 seqSourceC = unZipSourceC . traverse ZipSourceC
 
+-- newtype ZipSinkC i m r = ZipSinkC {unZipSinkC :: CoroT i Void m r}
+
+-- instance Functor (ZipSinkC i m) where
+--   fmap f (ZipSinkC c) = ZipSinkC (fmap f c)
+
+-- instance Functor m => Applicative (ZipSinkC i m) where
+--   pure = ZipSinkC . pure
+--   liftA2 f (ZipSinkC c1) (ZipSinkC c2) = ZipSinkC (zipWithSinkC f c1 c2)
+
+-- zipWithSinkC :: Functor m => (r1 -> r2 -> r3) -> CoroT i Void m r1 -> CoroT i Void m r2 -> CoroT i Void m r3
+-- zipWithSinkC f c1 c2 = CoroT $ \req _ lif end ->
+--   let stepFirst (X z1) y2 = case z1 of
+--         FAwait k -> undefined
+--         FYield o _ -> absurd o
+--         FLift mr -> undefined
+--         FEnd _ -> undefined
+--       stepSecond y1 mi (X z2) = case z2 of
+--         FAwait j -> undefined
+--         FYield o _ -> absurd o
+--         FLift mr -> undefined
+--         FEnd _ -> undefined
+--   in  stepFirst (reflectC c1) (reflectC c2)
+
 -- seqSinkC :: (Traversable f, Functor m) => f (CoroT i Void m r) -> CoroT i Void m (f r)
 -- seqSinkC = unZipSinkC . traverse ZipSinkC
+
+-- newtype ZipC i o m r = ZipC {unZipC :: CoroT i o m r}
+
+-- instance Functor (ZipC i o m) where
+--   fmap f (ZipC c) = ZipC (fmap f c)
+
+-- instance Functor m => Applicative (ZipC i o m) where
+--   pure = ZipC . pure
+--   liftA2 f (ZipC c1) (ZipC c2) = ZipC (zipWithC f c1 c2)
+
+-- zipWithC :: Functor m => (r1 -> r2 -> r3) -> CoroT i o m r1 -> CoroT i o m r2 -> CoroT i o m r3
+-- zipWithC f c1 c2 = CoroT $ \req rep lif end -> undefined
 
 -- seqC :: (Traversable f, Functor m) => f (CoroT i o m r) -> CoroT i o m (f r)
 -- seqC = unZipC . traverse ZipC
