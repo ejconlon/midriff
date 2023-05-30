@@ -1,45 +1,43 @@
 module Midriff.Clock
   ( Clock
-  , acquireClock
-  , acquireClockFork
+  , mkClock
   , clockPeriod
   , clockRead
-  -- , clockIsOpen
-  -- , clockGate
-  -- , clockAwait
   )
 where
 
 import Control.Concurrent (ThreadId, forkFinally, killThread)
 import Control.Concurrent.STM (STM, atomically)
 import Control.Concurrent.STM.TVar (TVar, newTVarIO, readTVar, readTVarIO)
-import Data.Acquire (Acquire)
-import Midiot.Time (MonoTime, TimeDelta)
-import Midriff.Control (Control)
+import Control.Monad (void, when)
+import Data.Acquire (Acquire, mkAcquire)
+import Midiot.Time (MonoTime, TimeDelta, currentTime, diffTime)
+import Midriff.Control (Control, controlClose, controlIsOpen, controlNewIO)
 
 data Clock = Clock
   { clockPeriod :: !TimeDelta
   , clockTid :: !ThreadId
+  , clockTime :: !(TVar MonoTime)
   , clockControl :: !Control
-  , clockVar :: !(TVar MonoTime)
   }
 
-acquireClockFrom :: MonoTime -> Control -> TimeDelta -> Acquire Clock
-acquireClockFrom control start per = undefined -- manageNew alloc free where
--- alloc = do
---   v <- newTVarIO start
---   l <- latchNewIO
---   tid <- forkFinally (atomically (latchClose l)) (loop l v)
---   pure (Clock per tid l v)
--- loop _l _v = go where
---   go = error "TODO"
--- free = killThread . clockTid
+mkClockFrom :: MonoTime -> Control -> TimeDelta -> Acquire Clock
+mkClockFrom start con per = mkAcquire alloc free
+ where
+  alloc = do
+    var <- newTVarIO start
+    tid <- forkFinally (update var con) (const (void (controlClose con)))
+    pure (Clock per tid var con)
+  update var con = do
+    open <- atomically (controlIsOpen con)
+    -- TODO bail early
+    prev <- readTVarIO var
+    now <- currentTime @MonoTime
+    undefined
+  free = killThread . clockTid
 
-acquireClock :: Control -> TimeDelta -> Acquire Clock
-acquireClock = acquireClockFrom minBound
-
-acquireClockFork :: Rational -> Clock -> Acquire Clock
-acquireClockFork = error "TODO"
+mkClock :: Control -> TimeDelta -> Acquire Clock
+mkClock = mkClockFrom minBound
 
 clockRead :: Clock -> STM MonoTime
-clockRead = readTVar . clockVar
+clockRead = readTVar . clockTime
