@@ -1,5 +1,3 @@
--- {-# LANGUAGE UndecidableInstances #-}
-
 module Midriff.Coro
   ( CoroT
   , Coro
@@ -216,22 +214,22 @@ fuseC :: Functor m => CoroT a b m () -> CoroT b c m r -> CoroT a c m r
 fuseC c1 c2 = CoroT $ \req rep lif end ->
   let x1 = reflectC c1
       x2 = reflectC c2
-      go1 (X z1) k = case z1 of
-        FAwait j -> req (\mi -> go1 (j mi) k)
-        FYield o r -> go2 r (k (Just o))
-        FLift mr -> lif (fmap (`go1` k) mr)
-        FEnd _ -> go3 (k Nothing)
-      go2 y1 (X z2) = case z2 of
-        FAwait k -> go1 y1 k
-        FYield o r -> rep o (go2 y1 r)
-        FLift mr -> lif (fmap (go2 y1) mr)
+      stepFirst (X z1) k = case z1 of
+        FAwait j -> req (\mi -> stepFirst (j mi) k)
+        FYield o r -> stepSecond r (k (Just o))
+        FLift mr -> lif (fmap (`stepFirst` k) mr)
+        FEnd _ -> drainSecond (k Nothing)
+      stepSecond y1 (X z2) = case z2 of
+        FAwait k -> stepFirst y1 k
+        FYield o r -> rep o (stepSecond y1 r)
+        FLift mr -> lif (fmap (stepSecond y1) mr)
         FEnd a -> end a
-      go3 (X z2) = case z2 of
-        FAwait k -> go3 (k Nothing)
-        FYield o r -> rep o (go3 r)
-        FLift mr -> lif (fmap go3 mr)
+      drainSecond (X z2) = case z2 of
+        FAwait k -> drainSecond (k Nothing)
+        FYield o r -> rep o (drainSecond r)
+        FLift mr -> lif (fmap drainSecond mr)
         FEnd a -> end a
-  in  go2 x1 x2
+  in stepSecond x1 x2
 
 -- | An inline synonym for 'fuseC'
 (.|) :: Functor m => CoroT a b m () -> CoroT b c m r -> CoroT a c m r
