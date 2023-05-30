@@ -385,24 +385,3 @@ consL a (ListT x) = ListT (yieldC a >> x)
 
 wrapL :: Functor m => m (ListT m a) -> ListT m a
 wrapL ml = ListT (CoroT (\req rep lif end -> lif (fmap (\(ListT (CoroT c)) -> c req rep lif end) ml)))
-
--- reconsL :: Functor m => m (Maybe (a, ListT m a)) -> ListT m a
--- reconsL = wrapL . fmap (maybe empty (uncurry consL))
-
--- -- Expensive, avoid?
--- unconsL :: Monad m => ListT m a -> m (Maybe (a, ListT m a))
--- unconsL (ListT (CoroT c)) = c req rep lif end
---  where
---   req k = k (Just ())
---   rep a r = pure (Just (a, reconsL r))
---   lif = join
---   end () = pure Nothing
-
--- forceL :: Monad m => ListT m a -> m (Seq a)
--- forceL = go Empty
---  where
---   go !acc l0 = do
---     mayPair <- unconsL l0
---     case mayPair of
---       Nothing -> pure acc
---       Just (a, l1) -> go (acc :|> a) l1
