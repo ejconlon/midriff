@@ -18,6 +18,7 @@ where
 import Control.Monad (when, (>=>))
 import Control.Monad.Primitive (PrimState)
 import Control.Monad.Trans.Resource (MonadResource, MonadUnliftIO)
+import Data.Acquire (Acquire, mkAcquire)
 import Data.Vector.Storable (Vector)
 import Data.Vector.Storable.Mutable (MVector)
 import Data.Vector.Storable.Mutable qualified as VSM
@@ -26,7 +27,7 @@ import Foreign.ForeignPtr.Unsafe qualified as FPU
 import Midriff.App (Done (..))
 import Midriff.Config (DeviceConfig (..), Ignores (..), InputConfig (..), PortConfig (..), PortId (..))
 import Midriff.Plex (Plex, plexNewU)
-import Midriff.Resource (Manager, managerNew, refNew)
+import Midriff.Resource (refNew)
 import Sound.RtMidi
   ( InputDevice
   , OutputDevice
@@ -74,8 +75,8 @@ inputOpenPort cb dev (InputConfig (PortConfig name pid) migs) = do
 
 data InputArgs = InputArgs !(Maybe DeviceConfig) !InputConfig !InputCallback
 
-inputNew :: InputArgs -> Manager InputDevice
-inputNew (InputArgs mdc ic cb) = managerNew alloc free
+inputNew :: InputArgs -> Acquire InputDevice
+inputNew (InputArgs mdc ic cb) = mkAcquire alloc free
  where
   alloc = do
     dev <- inputOpenDev mdc
@@ -104,8 +105,8 @@ outputOpenPort dev (PortConfig name pid) = do
 data OutputArgs = OutputArgs !(Maybe DeviceConfig) !PortConfig
   deriving stock (Eq)
 
-outputNew :: OutputArgs -> Manager OutputDevice
-outputNew (OutputArgs mdc pc) = managerNew alloc free
+outputNew :: OutputArgs -> Acquire OutputDevice
+outputNew (OutputArgs mdc pc) = mkAcquire alloc free
  where
   alloc = do
     dev <- outputOpenDev mdc
@@ -130,7 +131,7 @@ data ConnArgs = ConnArgsInput !InputArgs | ConnArgsOutput !OutputArgs
 
 data ConnDevice = ConnDeviceInput !InputDevice | ConnDeviceOutput !OutputDevice
 
-connNew :: ConnArgs -> Manager ConnDevice
+connNew :: ConnArgs -> Acquire ConnDevice
 connNew = \case
   ConnArgsInput ia -> fmap ConnDeviceInput (inputNew ia)
   ConnArgsOutput oa -> fmap ConnDeviceOutput (outputNew oa)
