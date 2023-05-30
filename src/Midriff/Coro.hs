@@ -2,8 +2,6 @@ module Midriff.Coro
   ( Consumed (..)
   , Sig (..)
   , CoroT (..)
-  , Coro
-  , CoroIO
   , inMapC
   , outMapC
   , bothMapC
@@ -26,9 +24,8 @@ module Midriff.Coro
   , eachC
   , bracketC
   , bracketC_
+  , registerC
   , ListT (..)
-  , List
-  , ListIO
   , liftL
   , eachL
   , consL
@@ -40,7 +37,6 @@ import Control.Applicative (Alternative (..), liftA2)
 import Control.Foldl qualified as F
 import Control.Monad (ap, join)
 import Control.Monad.IO.Class (MonadIO (..))
-import Control.Monad.Identity (Identity)
 import Control.Monad.Morph (MFunctor (..))
 import Control.Monad.Trans (MonadTrans (..))
 import Control.Monad.Trans.Resource (MonadResource (..), allocate, allocate_, register, release)
@@ -63,10 +59,6 @@ newtype CoroT i o m a = CoroT
       -> (a -> r)
       -> r
   }
-
-type Coro i o = CoroT i o Identity
-
-type CoroIO i o = CoroT i o IO
 
 instance Functor (CoroT i o m) where
   fmap f (CoroT c) = CoroT (\req rep lif end -> c req rep lif (end . f))
@@ -134,7 +126,7 @@ liftC act = CoroT (\_ _ lif end -> lif (fmap end act))
 wrapC :: Functor m => m (CoroT i o m a) -> CoroT i o m a
 wrapC mc = CoroT (\req rep lif end -> lif (fmap (\(CoroT c) -> c req rep lif end) mc))
 
-scanC :: Monad m => F.FoldM m i o -> CoroT i o m o
+scanC :: Monad m => F.FoldM m i o -> CoroT i o m ()
 scanC (F.FoldM step initial extract) = start
  where
   start = wrapC $ do
@@ -146,12 +138,12 @@ scanC (F.FoldM step initial extract) = start
       yieldC b0
       ma1 <- awaitC
       case ma1 of
-        Nothing -> pure b0
+        Nothing -> pure ()
         Just a1 -> wrapC $ do
           v1 <- step v0 a1
           loop v1
 
-foldC :: Monad m => F.FoldM m i o -> CoroT i o m o
+foldC :: Monad m => F.FoldM m i o -> CoroT i Void m o
 foldC (F.FoldM step initial extract) = start
  where
   start = wrapC $ do
@@ -166,20 +158,13 @@ foldC (F.FoldM step initial extract) = start
           v1 <- step v0 a1
           loop v1
 
--- purelyC :: F.Fold o a -> CoroT () o m () -> m a
--- purelyC = undefined
-
--- impurelyC :: F.FoldM m o a -> CoroT () o m () -> m a
--- impurelyC = undefined
-
--- TODO generalize to coro
 loopC :: (i -> ListT m o) -> CoroT i o m ()
 loopC f = CoroT $ \req rep lif end ->
   req $ \case
     Nothing -> end ()
     Just i -> let (ListT (CoroT c)) = f i in c (\r -> r (Just ())) rep lif end
 
-printC :: Show i => CoroIO i o ()
+printC :: (Show i, MonadIO m) => CoroT i Void m ()
 printC = awaitC >>= maybe (pure ()) (liftIO . print)
 
 -- | Run the first coroutine, replacing yields with the second.
@@ -279,8 +264,8 @@ bracketC_ acq rel (CoroT c) =
         let end' b = lif (end b <$ liftIO (release key))
         in  c req rep lif end'
 
-cleanupC :: MonadResource m => IO () -> CoroT i o m b -> CoroT i o m b
-cleanupC rel (CoroT c) =
+registerC :: MonadResource m => IO () -> CoroT i o m b -> CoroT i o m b
+registerC rel (CoroT c) =
   wrapC $
     register rel <&> \key ->
       CoroT $ \req rep lif end ->
@@ -372,10 +357,6 @@ seqSourceC = unZipSourceC . traverse ZipSourceC
 -- seqC = unZipC . traverse ZipC
 
 newtype ListT m a = ListT {enumerateC :: CoroT () a m ()}
-
-type List = ListT Identity
-
-type ListIO = ListT IO
 
 instance Functor (ListT m) where
   fmap f (ListT x) = ListT (outMapC f x)
