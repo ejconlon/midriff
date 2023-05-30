@@ -24,17 +24,16 @@ source-repository head
 
 library
   exposed-modules:
+      Midriff.App
       Midriff.Clock
       Midriff.Config
       Midriff.Connect
       Midriff.Control
       Midriff.Coro
-      Midriff.Flag
       Midriff.Freq
       Midriff.Gate
       Midriff.Lock
       Midriff.Main
-      Midriff.Mvc
       Midriff.Plex
       Midriff.RateLim
       Midriff.Resource

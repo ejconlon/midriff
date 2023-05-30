@@ -21,8 +21,7 @@ import Control.Monad ((>=>))
 import Data.Maybe (isJust)
 import Data.Vector (Vector)
 import Data.Vector qualified as V
-import Midriff.Flag (Done (..))
-import Midriff.Mvc (Output (..))
+import Midriff.App (Done (..), Output (..))
 
 data Pos = Pos
   { posGen :: !Int

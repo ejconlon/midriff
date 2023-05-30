@@ -23,8 +23,8 @@ import Data.Vector.Storable.Mutable (MVector)
 import Data.Vector.Storable.Mutable qualified as VSM
 import Data.Word (Word8)
 import Foreign.ForeignPtr.Unsafe qualified as FPU
+import Midriff.App (Done (..))
 import Midriff.Config (DeviceConfig (..), Ignores (..), InputConfig (..), PortConfig (..), PortId (..))
-import Midriff.Flag (Done (..))
 import Midriff.Plex (Plex, plexNewU)
 import Midriff.Resource (Manager, managerNew, refNew)
 import Sound.RtMidi
