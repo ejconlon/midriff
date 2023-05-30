@@ -1,5 +1,7 @@
 module Midriff.Coro
-  ( CoroT
+  ( Consumed (..)
+  , Sig (..)
+  , CoroT (..)
   , Coro
   , CoroIO
   , inMapC
@@ -34,25 +36,31 @@ module Midriff.Coro
   )
 where
 
-import Control.Applicative (Alternative (..))
+import Control.Applicative (Alternative (..), liftA2)
 import Control.Foldl qualified as F
 import Control.Monad (ap, join)
 import Control.Monad.IO.Class (MonadIO (..))
 import Control.Monad.Identity (Identity)
 import Control.Monad.Morph (MFunctor (..))
 import Control.Monad.Trans (MonadTrans (..))
-import Control.Monad.Trans.Resource (MonadResource (..), allocate, release, allocate_, register)
+import Control.Monad.Trans.Resource (MonadResource (..), allocate, allocate_, register, release)
 import Data.Foldable (toList)
 import Data.Functor ((<&>))
 import Data.Void (Void, absurd)
 
+data Consumed = ConsumedNo | ConsumedYes
+  deriving stock (Eq, Ord, Show, Enum, Bounded)
+
+data Sig = SigCont | SigEnd Consumed
+  deriving stock (Eq, Ord, Show)
+
 newtype CoroT i o m a = CoroT
   { unCoroT
       :: forall r
-       . ((Maybe i -> r) -> r) -- ^ await
-      -> (o -> r -> r)         -- ^ yield
-      -> (m r -> r)            -- ^ lift
-      -> (a -> r)              -- ^ end
+       . ((Maybe i -> r) -> r)
+      -> (o -> (Sig -> r) -> r)
+      -> (m r -> r)
+      -> (a -> r)
       -> r
   }
 
@@ -118,7 +126,7 @@ awaitC :: CoroT i o m (Maybe i)
 awaitC = CoroT (\req _ _ end -> req end)
 
 yieldC :: o -> CoroT i o m ()
-yieldC o = CoroT (\_ rep _ end -> rep o (end ()))
+yieldC o = CoroT (\_ rep _ end -> rep o (const (end ())))
 
 liftC :: Functor m => m a -> CoroT i o m a
 liftC act = CoroT (\_ _ lif end -> lif (fmap end act))
@@ -179,7 +187,7 @@ printC = awaitC >>= maybe (pure ()) (liftIO . print)
 -- is the right identity.
 forC :: CoroT i o m a -> (o -> CoroT i p m ()) -> CoroT i p m a
 forC (CoroT x) f = CoroT $ \req rep lif end ->
-  let rep' o r = let (CoroT y) = f o in y req rep lif (const r)
+  let rep' o k = let (CoroT y) = f o in y req rep lif (const (k SigCont))
   in  x req rep' lif end
 
 -- | Run the second coroutine, replacing awaits with the first.
@@ -198,7 +206,7 @@ catC = go
 
 data F i o m a r
   = FAwait (Maybe i -> r)
-  | FYield o r
+  | FYield o (Sig -> r)
   | FLift (m r)
   | FEnd a
   deriving stock (Functor)
@@ -212,24 +220,31 @@ reflectC (CoroT c) = c (X . FAwait) (\o -> X . FYield o) (X . FLift) (X . FEnd)
 -- to respond; continuing until the second terminates.
 fuseC :: Functor m => CoroT a b m () -> CoroT b c m r -> CoroT a c m r
 fuseC c1 c2 = CoroT $ \req rep lif end ->
-  let x1 = reflectC c1
-      x2 = reflectC c2
-      stepFirst (X z1) k = case z1 of
+  let stepFirst (X z1) k = case z1 of
         FAwait j -> req (\mi -> stepFirst (j mi) k)
-        FYield o r -> stepSecond r (k (Just o))
+        FYield o j -> stepSecond j (k (Just o))
         FLift mr -> lif (fmap (`stepFirst` k) mr)
         FEnd _ -> drainSecond (k Nothing)
-      stepSecond y1 (X z2) = case z2 of
-        FAwait k -> stepFirst y1 k
-        FYield o r -> rep o (stepSecond y1 r)
-        FLift mr -> lif (fmap (stepSecond y1) mr)
-        FEnd a -> end a
+      stepSecond j (X z2) = case z2 of
+        FAwait k -> stepFirst (j SigCont) k
+        FYield o k -> rep o (stepSecond j . k)
+        FLift mr -> lif (fmap (stepSecond j) mr)
+        FEnd a -> drainFirst (j (SigEnd ConsumedYes)) a
+      drainFirst (X z1) a = case z1 of
+        FAwait j -> req (\mi -> drainFirst (j mi) a)
+        FYield _ j -> drainFirst (j (SigEnd ConsumedNo)) a
+        FLift mr -> lif (fmap (`drainFirst` a) mr)
+        FEnd _ -> end a
       drainSecond (X z2) = case z2 of
         FAwait k -> drainSecond (k Nothing)
-        FYield o r -> rep o (drainSecond r)
+        FYield o k -> rep o (drainSecond . k)
         FLift mr -> lif (fmap drainSecond mr)
         FEnd a -> end a
-  in stepSecond x1 x2
+      mkX1 = \case
+        SigCont -> reflectC c1
+        SigEnd _ -> X (FEnd ())
+      x2 = reflectC c2
+  in  stepSecond mkX1 x2
 
 -- | An inline synonym for 'fuseC'
 (.|) :: Functor m => CoroT a b m () -> CoroT b c m r -> CoroT a c m r
@@ -242,30 +257,84 @@ eachC :: Foldable f => f o -> CoroT i o m ()
 eachC fa = CoroT $ \_ rep _ end ->
   let go = \case
         [] -> end ()
-        a : as' -> rep a (go as')
+        a : as' -> rep a $ \case
+          SigCont -> go as'
+          SigEnd _ -> end ()
   in  go (toList fa)
 
 bracketC :: MonadResource m => IO a -> (a -> IO ()) -> (a -> CoroT i o m b) -> CoroT i o m b
-bracketC acq rel use = wrapC $ allocate acq rel <&> \(key, a) ->
-  CoroT $ \req rep lif end ->
-    let (CoroT c) = use a
-        end' b = lif (end b <$ liftIO (release key))
-    in c req rep lif end'
+bracketC acq rel use =
+  wrapC $
+    allocate acq rel <&> \(key, a) ->
+      CoroT $ \req rep lif end ->
+        let (CoroT c) = use a
+            end' b = lif (end b <$ liftIO (release key))
+        in  c req rep lif end'
 
 bracketC_ :: MonadResource m => IO a -> IO () -> CoroT i o m b -> CoroT i o m b
-bracketC_ acq rel (CoroT c) = wrapC $ allocate_ acq rel <&> \key ->
-  CoroT $ \req rep lif end ->
-    let end' b = lif (end b <$ liftIO (release key))
-    in c req rep lif end'
+bracketC_ acq rel (CoroT c) =
+  wrapC $
+    allocate_ acq rel <&> \key ->
+      CoroT $ \req rep lif end ->
+        let end' b = lif (end b <$ liftIO (release key))
+        in  c req rep lif end'
 
 cleanupC :: MonadResource m => IO () -> CoroT i o m b -> CoroT i o m b
-cleanupC rel (CoroT c) = wrapC $ register rel <&> \key ->
-  CoroT $ \req rep lif end ->
-    let end' b = lif (end b <$ liftIO (release key))
-    in c req rep lif end'
+cleanupC rel (CoroT c) =
+  wrapC $
+    register rel <&> \key ->
+      CoroT $ \req rep lif end ->
+        let end' b = lif (end b <$ liftIO (release key))
+        in  c req rep lif end'
 
--- teeC :: CoroT i Void m () -> CoroT i i m ()
--- teeC = undefined
+passthroughC :: Functor m => CoroT i Void m () -> CoroT i i m ()
+passthroughC c = CoroT $ \req rep lif end ->
+  let step mi (X y) = case y of
+        FAwait k -> do
+          case mi of
+            Nothing -> req (\mi' -> step mi' (k mi'))
+            Just i -> rep i $ \case
+              SigCont -> req (\mi' -> step mi' (k mi'))
+              SigEnd _ -> end ()
+        FYield o _ -> absurd o
+        FLift mr -> lif (fmap (step mi) mr)
+        FEnd _ ->
+          case mi of
+            Nothing -> end ()
+            Just i -> rep i (const (end ()))
+  in  step Nothing (reflectC c)
+
+newtype ZipSourceC m o = ZipSourceC {unZipSourceC :: CoroT () o m ()}
+
+instance Functor (ZipSourceC m) where
+  fmap f (ZipSourceC c) = ZipSourceC (outMapC f c)
+
+instance Functor m => Applicative (ZipSourceC m) where
+  pure = ZipSourceC . yieldC
+  liftA2 f (ZipSourceC c1) (ZipSourceC c2) = ZipSourceC (zipWithSourceC f c1 c2)
+
+zipWithSourceC :: Functor m => (o1 -> o2 -> o3) -> CoroT () o1 m () -> CoroT () o2 m () -> CoroT () o3 m ()
+zipWithSourceC f c1 c2 = CoroT $ \_ rep lif end ->
+  let stepFirst (X z1) j = case z1 of
+        FAwait k -> stepFirst (k (Just ())) j
+        FYield o1 k -> stepSecond o1 k (j SigCont)
+        FLift mr -> lif (fmap (`stepFirst` j) mr)
+        FEnd _ -> end ()
+      stepSecond o1 k (X z2) = case z2 of
+        FAwait j -> stepSecond o1 k (j (Just ()))
+        FYield o2 j -> rep (f o1 o2) (\s -> stepFirst (k s) j)
+        FLift mr -> lif (fmap (stepSecond o1 k) mr)
+        FEnd _ -> end ()
+  in  stepFirst (reflectC c1) (\case SigCont -> reflectC c2; _ -> X (FEnd ()))
+
+seqSourceC :: (Traversable f, Functor m) => f (CoroT () o m ()) -> CoroT () (f o) m ()
+seqSourceC = unZipSourceC . traverse ZipSourceC
+
+-- seqSinkC :: (Traversable f, Functor m) => f (CoroT i Void m r) -> CoroT i Void m (f r)
+-- seqSinkC = unZipSinkC . traverse ZipSinkC
+
+-- seqC :: (Traversable f, Functor m) => f (CoroT i o m r) -> CoroT i o m (f r)
+-- seqC = unZipC . traverse ZipC
 
 newtype ListT m a = ListT {enumerateC :: CoroT () a m ()}
 
