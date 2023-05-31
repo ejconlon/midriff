@@ -25,6 +25,14 @@ module Midriff.Coro
   , bracketC
   , bracketC_
   , registerC
+  , passthroughC
+  , mergeSourceC
+  , ZipSourceC (..)
+  , zipWithSourceC
+  , ZipSinkC (..)
+  , zipWithSinkC
+  , ZipC (..)
+  , zipWithC
   , ListT (..)
   , liftL
   , eachL
@@ -38,6 +46,7 @@ import Control.Foldl qualified as F
 import Control.Monad (ap, join)
 import Control.Monad.IO.Class (MonadIO (..))
 import Control.Monad.Morph (MFunctor (..))
+import Control.Monad.RWS (MonadWriter (pass))
 import Control.Monad.Trans (MonadTrans (..))
 import Control.Monad.Trans.Resource (MonadResource (..), allocate, allocate_, register, release)
 import Data.Foldable (toList)
@@ -274,7 +283,7 @@ registerC rel (CoroT c) =
 
 passthroughC :: Functor m => CoroT i Void m () -> CoroT i i m ()
 passthroughC c = CoroT $ \req rep lif end ->
-  let step mi (X y) = case y of
+  let step mi (X z) = case z of
         FAwait k -> do
           case mi of
             Nothing -> req (\mi' -> step mi' (k mi'))
@@ -288,6 +297,17 @@ passthroughC c = CoroT $ \req rep lif end ->
             Nothing -> end ()
             Just i -> rep i (const (end ()))
   in  step Nothing (reflectC c)
+
+mergeSourceC :: Functor m => CoroT () i m () -> CoroT a (i, a) m ()
+mergeSourceC c = CoroT $ \req rep lif end ->
+  let step (X z) = case z of
+        FAwait k -> step (k (Just ()))
+        FYield i k -> req $ \case
+          Nothing -> end ()
+          Just a -> rep (i, a) (step . k)
+        FLift mr -> lif (fmap step mr)
+        FEnd _ -> end ()
+  in  step (reflectC c)
 
 newtype ZipSourceC m o = ZipSourceC {unZipSourceC :: CoroT () o m ()}
 
@@ -315,46 +335,89 @@ zipWithSourceC f c1 c2 = CoroT $ \_ rep lif end ->
 seqSourceC :: (Traversable f, Functor m) => f (CoroT () o m ()) -> CoroT () (f o) m ()
 seqSourceC = unZipSourceC . traverse ZipSourceC
 
--- newtype ZipSinkC i m r = ZipSinkC {unZipSinkC :: CoroT i Void m r}
+newtype ZipSinkC i m r = ZipSinkC {unZipSinkC :: CoroT i Void m r}
 
--- instance Functor (ZipSinkC i m) where
---   fmap f (ZipSinkC c) = ZipSinkC (fmap f c)
+instance Functor (ZipSinkC i m) where
+  fmap f (ZipSinkC c) = ZipSinkC (fmap f c)
 
--- instance Functor m => Applicative (ZipSinkC i m) where
---   pure = ZipSinkC . pure
---   liftA2 f (ZipSinkC c1) (ZipSinkC c2) = ZipSinkC (zipWithSinkC f c1 c2)
+instance Functor m => Applicative (ZipSinkC i m) where
+  pure = ZipSinkC . pure
+  liftA2 f (ZipSinkC c1) (ZipSinkC c2) = ZipSinkC (zipWithSinkC f c1 c2)
 
--- zipWithSinkC :: Functor m => (r1 -> r2 -> r3) -> CoroT i Void m r1 -> CoroT i Void m r2 -> CoroT i Void m r3
--- zipWithSinkC f c1 c2 = CoroT $ \req _ lif end ->
---   let stepFirst (X z1) y2 = case z1 of
---         FAwait k -> undefined
---         FYield o _ -> absurd o
---         FLift mr -> undefined
---         FEnd _ -> undefined
---       stepSecond y1 mi (X z2) = case z2 of
---         FAwait j -> undefined
---         FYield o _ -> absurd o
---         FLift mr -> undefined
---         FEnd _ -> undefined
---   in  stepFirst (reflectC c1) (reflectC c2)
+zipWithSinkC :: Functor m => (r1 -> r2 -> r3) -> CoroT i Void m r1 -> CoroT i Void m r2 -> CoroT i Void m r3
+zipWithSinkC f c1 c2 = CoroT $ \req _ lif end ->
+  let stepFirst mi y1@(X z1) y2 = case z1 of
+        FAwait k ->
+          case mi of
+            Nothing -> req (\mi' -> stepSecond mi' (k mi') y2)
+            Just _ -> stepSecond mi y1 y2
+        FYield o _ -> absurd o
+        FLift mr -> lif (fmap (\r -> stepFirst mi r y2) mr)
+        FEnd r1 -> drainSecond r1 mi y2
+      stepSecond mi y1 (X z2) = case z2 of
+        FAwait j -> stepFirst Nothing y1 (j mi)
+        FYield o _ -> absurd o
+        FLift mr -> lif (fmap (stepSecond mi y1) mr)
+        FEnd r2 -> drainFirst r2 y1
+      drainFirst r2 (X z1) = case z1 of
+        FAwait k -> req (drainFirst r2 . k)
+        FYield o _ -> absurd o
+        FLift mr -> lif (fmap (drainFirst r2) mr)
+        FEnd r1 -> end (f r1 r2)
+      drainSecond r1 mi (X z2) = case z2 of
+        FAwait j ->
+          case mi of
+            Nothing -> req (drainSecond r1 Nothing . j)
+            Just _ -> drainSecond r1 Nothing (j mi)
+        FYield o _ -> absurd o
+        FLift mr -> lif (fmap (drainSecond r1 mi) mr)
+        FEnd r2 -> end (f r1 r2)
+  in  stepFirst Nothing (reflectC c1) (reflectC c2)
 
--- seqSinkC :: (Traversable f, Functor m) => f (CoroT i Void m r) -> CoroT i Void m (f r)
--- seqSinkC = unZipSinkC . traverse ZipSinkC
+seqSinkC :: (Traversable f, Functor m) => f (CoroT i Void m r) -> CoroT i Void m (f r)
+seqSinkC = unZipSinkC . traverse ZipSinkC
 
--- newtype ZipC i o m r = ZipC {unZipC :: CoroT i o m r}
+newtype ZipC i o m r = ZipC {unZipC :: CoroT i o m r}
 
--- instance Functor (ZipC i o m) where
---   fmap f (ZipC c) = ZipC (fmap f c)
+instance Functor (ZipC i o m) where
+  fmap f (ZipC c) = ZipC (fmap f c)
 
--- instance Functor m => Applicative (ZipC i o m) where
---   pure = ZipC . pure
---   liftA2 f (ZipC c1) (ZipC c2) = ZipC (zipWithC f c1 c2)
+instance Functor m => Applicative (ZipC i o m) where
+  pure = ZipC . pure
+  liftA2 f (ZipC c1) (ZipC c2) = ZipC (zipWithC f c1 c2)
 
--- zipWithC :: Functor m => (r1 -> r2 -> r3) -> CoroT i o m r1 -> CoroT i o m r2 -> CoroT i o m r3
--- zipWithC f c1 c2 = CoroT $ \req rep lif end -> undefined
+zipWithC :: Functor m => (r1 -> r2 -> r3) -> CoroT i o m r1 -> CoroT i o m r2 -> CoroT i o m r3
+zipWithC f c1 c2 = CoroT $ \req rep lif end ->
+  let stepFirst mi y1@(X z1) y2 = case z1 of
+        FAwait k ->
+          case mi of
+            Nothing -> req (\mi' -> stepSecond mi' (k mi') y2)
+            Just _ -> stepSecond mi y1 y2
+        FYield o k -> rep o (\s -> stepFirst mi (k s) y2)
+        FLift mr -> lif (fmap (\r -> stepFirst mi r y2) mr)
+        FEnd r1 -> drainSecond r1 mi y2
+      stepSecond mi y1 (X z2) = case z2 of
+        FAwait j -> stepFirst Nothing y1 (j mi)
+        FYield o j -> rep o (stepSecond mi y1 . j)
+        FLift mr -> lif (fmap (stepSecond mi y1) mr)
+        FEnd r2 -> drainFirst r2 y1
+      drainFirst r2 (X z1) = case z1 of
+        FAwait k -> req (drainFirst r2 . k)
+        FYield o k -> rep o (drainFirst r2 . k)
+        FLift mr -> lif (fmap (drainFirst r2) mr)
+        FEnd r1 -> end (f r1 r2)
+      drainSecond r1 mi (X z2) = case z2 of
+        FAwait j ->
+          case mi of
+            Nothing -> req (drainSecond r1 Nothing . j)
+            Just _ -> drainSecond r1 Nothing (j mi)
+        FYield o j -> rep o (drainSecond r1 mi . j)
+        FLift mr -> lif (fmap (drainSecond r1 mi) mr)
+        FEnd r2 -> end (f r1 r2)
+  in  stepFirst Nothing (reflectC c1) (reflectC c2)
 
--- seqC :: (Traversable f, Functor m) => f (CoroT i o m r) -> CoroT i o m (f r)
--- seqC = unZipC . traverse ZipC
+seqC :: (Traversable f, Functor m) => f (CoroT i o m r) -> CoroT i o m (f r)
+seqC = unZipC . traverse ZipC
 
 newtype ListT m a = ListT {enumerateC :: CoroT () a m ()}
 
