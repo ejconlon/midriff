@@ -1,4 +1,4 @@
-resolver: "https://raw.githubusercontent.com/ejconlon/stack-resolvers/master/head.yaml#0"
+resolver: "https://raw.githubusercontent.com/ejconlon/stack-resolvers/master/head.yaml#9"
 
 ghc-options:
   "$everything": -haddock
