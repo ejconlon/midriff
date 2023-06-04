@@ -70,15 +70,15 @@ packages:
     commit: 77f5bff4ac0c6434bc248766096eb387bf5ef8e3
     git: git@github.com:ejconlon/looksie.git
 - completed:
-    commit: 711ec8ad3b425099bd08e03b5f09534600240e5a
+    commit: 7a638c0b7708f247d631deb31e873e03fcd44c50
     git: git@github.com:ejconlon/midiot.git
     name: midiot
     pantry-tree:
-      sha256: 0828199ee55cb840f2c5aed8e593e7025cbd7042ffaf7d20bff82f612f5e6e7a
+      sha256: 1ed9ce1b752757018b38e2108f1ecb76c860c0e988021868e5bb8b781d84ac04
       size: 7081
     version: 0.1.0
   original:
-    commit: 711ec8ad3b425099bd08e03b5f09534600240e5a
+    commit: 7a638c0b7708f247d631deb31e873e03fcd44c50
     git: git@github.com:ejconlon/midiot.git
 - completed:
     commit: f006e1d040f05a7974910d2392c09090bf71a8bb
@@ -114,11 +114,11 @@ packages:
     hackage: primitive-0.8.0.0
 snapshots:
 - completed:
-    sha256: f5e372c7f907490c043b5a39a5588b4e0c7605a5fd621edcbebf2f34d19770d2
+    sha256: 7acac75d83219d2e5e57fd1dde849d8f139640d2bea87fe9eb4b065e30c34274
     size: 1223
-    url: https://raw.githubusercontent.com/ejconlon/stack-resolvers/master/head.yaml#11
+    url: https://raw.githubusercontent.com/ejconlon/stack-resolvers/master/head.yaml#12
   original:
-    url: https://raw.githubusercontent.com/ejconlon/stack-resolvers/master/head.yaml#11
+    url: https://raw.githubusercontent.com/ejconlon/stack-resolvers/master/head.yaml#12
 - completed:
     sha256: 4c972e067bae16b95961dbfdd12e07f1ee6c8fffabbfa05c3d65100b03f548b7
     size: 650253

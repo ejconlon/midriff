@@ -30,6 +30,7 @@ library
       Midriff.Connect
       Midriff.Control
       Midriff.Coro
+      Midriff.Dirt
       Midriff.Freq
       Midriff.Gate
       Midriff.Lock
@@ -88,6 +89,7 @@ library
     , profunctors ==5.6.*
     , resourcet >=1.2.4.2 && <2
     , stm >=2.5.0.0 && <3
+    , text >=1.2 && <2.1
     , transformers >=0.5 && <0.7
     , unliftio-core >=0.1.2.0 && <1
     , vector >=0.12.1.2 && <1
@@ -144,6 +146,7 @@ executable midriff-exe
     , profunctors ==5.6.*
     , resourcet >=1.2.4.2 && <2
     , stm >=2.5.0.0 && <3
+    , text >=1.2 && <2.1
     , transformers >=0.5 && <0.7
     , unliftio-core >=0.1.2.0 && <1
     , vector >=0.12.1.2 && <1
@@ -205,6 +208,7 @@ test-suite midriff-test
     , tasty >=1.2.3 && <2
     , tasty-hedgehog >=1.0.0.2 && <2
     , tasty-hunit >=0.10.0.2 && <1
+    , text >=1.2 && <2.1
     , transformers >=0.5 && <0.7
     , unliftio-core >=0.1.2.0 && <1
     , vector >=0.12.1.2 && <1

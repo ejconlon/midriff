@@ -1,10 +1,13 @@
+{-# LANGUAGE OverloadedStrings #-}
+
 module Midriff.Spy where
 
 import Control.Monad.IO.Class (liftIO)
 import Control.Monad.Trans.Resource (runResourceT)
 import Dahdit.Network (Conn (..), HostPort (..), resolveAddr, runDecoder, runEncoder, udpServerConn)
 import Data.Acquire (allocateAcquire)
-import Midiot.Osc (Packet)
+import Data.Sequence qualified as Seq
+import Midiot.Osc (Datum (..), Msg (..), Packet (..))
 import Network.Socket qualified as NS
 
 oscSpyLocal :: Int -> Int -> IO ()
@@ -18,6 +21,15 @@ oscSpy spyHost destHost = runResourceT $ do
   (_, srvConn) <- allocateAcquire (udpServerConn Nothing spyHost)
   liftIO (oscSpyLoop destAddr srvConn)
 
+-- Just testing whether tidal connects to this or not
+xformMsg :: Packet -> Packet
+xformMsg = \case
+  PacketMsg (Msg addr ds)
+    | addr == "/dirt/handshake/reply" ->
+        let ds' = Seq.update 3 (DatumInt32 57111) ds
+        in  PacketMsg (Msg addr ds')
+  p -> p
+
 oscSpyLoop :: NS.SockAddr -> Conn NS.SockAddr -> IO ()
 oscSpyLoop destAddr (Conn dec enc) = go Nothing
  where
@@ -26,13 +38,14 @@ oscSpyLoop destAddr (Conn dec enc) = go Nothing
     case res of
       Left err -> print err
       Right (msg :: Packet) -> do
-        print (recvAddr, msg)
+        let msg' = xformMsg msg
+        print (recvAddr, msg')
         if recvAddr == destAddr
           then do
             case maySrcAddr of
-              Just srcAddr -> runEncoder enc srcAddr msg
+              Just srcAddr -> runEncoder enc srcAddr msg'
               Nothing -> pure ()
             go maySrcAddr
           else do
-            runEncoder enc destAddr msg
+            runEncoder enc destAddr msg'
             go (Just recvAddr)
