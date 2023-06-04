@@ -48,15 +48,15 @@ packages:
     commit: 4eded9b1c0f2fdaa54ff94d369f7c8cf729e2b5a
     git: git@github.com:ejconlon/dahdit-test.git
 - completed:
-    commit: c76f7c3f4463e242040ba6dd7e9a226e3a41c5a7
+    commit: e932c97f85d5bb7de72d800369c2040342bd6d2d
     git: git@github.com:ejconlon/dahdit-network.git
     name: dahdit-network
     pantry-tree:
-      sha256: f6a1cfee39edf62913c74855e96fb29b1bf9b873db1aedb0320da6115d1f2969
+      sha256: 569bf088b626946a0095f26f6b6b8403d25dc02b489bebbfd2a215ab6fe97d6a
       size: 714
     version: 0.1.1
   original:
-    commit: c76f7c3f4463e242040ba6dd7e9a226e3a41c5a7
+    commit: e932c97f85d5bb7de72d800369c2040342bd6d2d
     git: git@github.com:ejconlon/dahdit-network.git
 - completed:
     commit: 77f5bff4ac0c6434bc248766096eb387bf5ef8e3
@@ -114,11 +114,11 @@ packages:
     hackage: primitive-0.8.0.0
 snapshots:
 - completed:
-    sha256: f9fb3f785c3ed2a75eb65a63433b7e5021851f55ac7f5fa0f650e8e025ac2b99
+    sha256: f5e372c7f907490c043b5a39a5588b4e0c7605a5fd621edcbebf2f34d19770d2
     size: 1223
-    url: https://raw.githubusercontent.com/ejconlon/stack-resolvers/master/head.yaml#10
+    url: https://raw.githubusercontent.com/ejconlon/stack-resolvers/master/head.yaml#11
   original:
-    url: https://raw.githubusercontent.com/ejconlon/stack-resolvers/master/head.yaml#10
+    url: https://raw.githubusercontent.com/ejconlon/stack-resolvers/master/head.yaml#11
 - completed:
     sha256: 4c972e067bae16b95961dbfdd12e07f1ee6c8fffabbfa05c3d65100b03f548b7
     size: 650253

@@ -46,7 +46,6 @@ import Control.Foldl qualified as F
 import Control.Monad (ap, join)
 import Control.Monad.IO.Class (MonadIO (..))
 import Control.Monad.Morph (MFunctor (..))
-import Control.Monad.RWS (MonadWriter (pass))
 import Control.Monad.Trans (MonadTrans (..))
 import Control.Monad.Trans.Resource (MonadResource (..), allocate, allocate_, register, release)
 import Data.Foldable (toList)

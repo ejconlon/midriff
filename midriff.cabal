@@ -38,6 +38,7 @@ library
       Midriff.RateLim
       Midriff.Resource
       Midriff.Ring
+      Midriff.Spy
       Midriff.Word
   other-modules:
       Paths_midriff
@@ -80,7 +81,9 @@ library
     , midiot ==0.1.*
     , mmorph ==1.2.*
     , mtl >=2.2 && <2.4
+    , network ==3.1.*
     , optics ==0.4.*
+    , prettyprinter ==1.7.*
     , primitive >=0.7 && <0.9
     , profunctors ==5.6.*
     , resourcet >=1.2.4.2 && <2
@@ -134,7 +137,9 @@ executable midriff-exe
     , midriff
     , mmorph ==1.2.*
     , mtl >=2.2 && <2.4
+    , network ==3.1.*
     , optics ==0.4.*
+    , prettyprinter ==1.7.*
     , primitive >=0.7 && <0.9
     , profunctors ==5.6.*
     , resourcet >=1.2.4.2 && <2
@@ -190,7 +195,9 @@ test-suite midriff-test
     , midriff
     , mmorph ==1.2.*
     , mtl >=2.2 && <2.4
+    , network ==3.1.*
     , optics ==0.4.*
+    , prettyprinter ==1.7.*
     , primitive >=0.7 && <0.9
     , profunctors ==5.6.*
     , resourcet >=1.2.4.2 && <2
