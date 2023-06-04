@@ -26,15 +26,15 @@ packages:
   original:
     hackage: aeson-via-0.2.1
 - completed:
-    commit: d6a31cf6333f3e918a61ac84a069286983cdcc27
+    commit: 6a6321095a3fa5efb98c5a09136129663c3a82da
     git: git@github.com:ejconlon/dahdit.git
     name: dahdit
     pantry-tree:
-      sha256: 551fbd48feed5df157fbe091940a5ebdbd1832ed71887e8d687ace65e0461c08
-      size: 1691
+      sha256: 86fe9958bd092579f2b4130abc291f7137e87092a9b7e9a0eae35cb1b3c5465f
+      size: 1690
     version: 0.4.1
   original:
-    commit: d6a31cf6333f3e918a61ac84a069286983cdcc27
+    commit: 6a6321095a3fa5efb98c5a09136129663c3a82da
     git: git@github.com:ejconlon/dahdit.git
 - completed:
     commit: 4eded9b1c0f2fdaa54ff94d369f7c8cf729e2b5a
@@ -48,15 +48,15 @@ packages:
     commit: 4eded9b1c0f2fdaa54ff94d369f7c8cf729e2b5a
     git: git@github.com:ejconlon/dahdit-test.git
 - completed:
-    commit: 4403254c5ba3cd558204a0e406af47fbd3658c22
+    commit: c76f7c3f4463e242040ba6dd7e9a226e3a41c5a7
     git: git@github.com:ejconlon/dahdit-network.git
     name: dahdit-network
     pantry-tree:
-      sha256: 0c8543ed1394606b815eedf1c27cc1b1634df8ab56270b17ef466aabfea91857
-      size: 713
-    version: 0.1.0
+      sha256: f6a1cfee39edf62913c74855e96fb29b1bf9b873db1aedb0320da6115d1f2969
+      size: 714
+    version: 0.1.1
   original:
-    commit: 4403254c5ba3cd558204a0e406af47fbd3658c22
+    commit: c76f7c3f4463e242040ba6dd7e9a226e3a41c5a7
     git: git@github.com:ejconlon/dahdit-network.git
 - completed:
     commit: 77f5bff4ac0c6434bc248766096eb387bf5ef8e3
@@ -70,15 +70,15 @@ packages:
     commit: 77f5bff4ac0c6434bc248766096eb387bf5ef8e3
     git: git@github.com:ejconlon/looksie.git
 - completed:
-    commit: 920713db1c51b90089d6e464b4022daa0643459b
+    commit: 711ec8ad3b425099bd08e03b5f09534600240e5a
     git: git@github.com:ejconlon/midiot.git
     name: midiot
     pantry-tree:
-      sha256: 135e771823b84c0b2485cf849aff77d7d6c3a1582854f87022abb6866cd26ea5
-      size: 7140
+      sha256: 0828199ee55cb840f2c5aed8e593e7025cbd7042ffaf7d20bff82f612f5e6e7a
+      size: 7081
     version: 0.1.0
   original:
-    commit: 920713db1c51b90089d6e464b4022daa0643459b
+    commit: 711ec8ad3b425099bd08e03b5f09534600240e5a
     git: git@github.com:ejconlon/midiot.git
 - completed:
     commit: f006e1d040f05a7974910d2392c09090bf71a8bb
@@ -114,11 +114,11 @@ packages:
     hackage: primitive-0.8.0.0
 snapshots:
 - completed:
-    sha256: fca7899d0402032595080fed4eee5d83018c7d11f4f47f8e5208cd4313a61b74
+    sha256: f9fb3f785c3ed2a75eb65a63433b7e5021851f55ac7f5fa0f650e8e025ac2b99
     size: 1223
-    url: https://raw.githubusercontent.com/ejconlon/stack-resolvers/master/head.yaml#9
+    url: https://raw.githubusercontent.com/ejconlon/stack-resolvers/master/head.yaml#10
   original:
-    url: https://raw.githubusercontent.com/ejconlon/stack-resolvers/master/head.yaml#9
+    url: https://raw.githubusercontent.com/ejconlon/stack-resolvers/master/head.yaml#10
 - completed:
     sha256: 4c972e067bae16b95961dbfdd12e07f1ee6c8fffabbfa05c3d65100b03f548b7
     size: 650253
