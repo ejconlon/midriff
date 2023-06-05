@@ -1,181 +1,208 @@
+{-# LANGUAGE DataKinds #-}
 {-# LANGUAGE OverloadedStrings #-}
 
 module Midriff.Dirt where
 
+import Control.Monad (unless)
 import Control.Monad.Except (Except, MonadError (..), runExcept)
 import Control.Monad.State.Strict (MonadState (..), StateT, evalStateT)
 import Dahdit (ShortByteString)
 import Data.Int (Int32, Int64)
+import Data.Map.Strict (Map)
+import Data.Map.Strict qualified as Map
 import Data.Sequence (Seq (..))
 import Data.Sequence qualified as Seq
+import Data.Set (Set)
+import Data.Set qualified as Set
 import Data.Text (Text)
-import Midiot.Osc (Datum (..), DatumType (..), Msg (..), Packet (..), PortMsg, datumType)
+import GHC.Generics (Generic)
+import Midiot.Osc (Datum (..), DatumType (..), Msg (..), PortMsg, datumType)
 import Midiot.OscAddr (RawAddrPat)
 import Midiot.Time (NtpTime)
-import Optics (Prism', preview, prism', review)
+import Optics (AffineTraversal', Prism', gafield, gconstructor, ix, preview, prism', review, set, (%))
 
-data S = SPacket !Packet | SMsg !Msg | SArgs !(Seq Datum)
+-- TODO move into source lib
+deriving stock instance Generic Datum
 
-data Err
-  = ErrState
-  | ErrNotMsg
-  | ErrAddrMismatch !RawAddrPat !RawAddrPat
-  | ErrEmptyArgs
-  | ErrDatumMismatch !(Maybe Datum) !Datum
-  | ErrDatumTypeMismatch !(Maybe DatumType) !DatumType
-  | ErrDatumLeftoverArgs !Int
+data ArgsErr
+  = ArgsErrEmpty
+  | ArgsErrMismatch !Datum !Datum
+  | ArgsErrTyMismatch !DatumType !DatumType
+  | ArgsErrLeftover !Int
+  | ArgsErrInvalidField !Text !Datum
+  | ArgsErrMissingFields !(Set Text)
   deriving stock (Eq, Ord, Show)
 
-newtype M a = M {unM :: StateT S (Except Err) a}
-  deriving newtype (Functor, Applicative, Monad)
+type P = StateT (Seq Datum) (Except ArgsErr)
 
-parse :: M a -> Packet -> Either Err a
-parse m p = runExcept (evalStateT (unM m) (SPacket p))
+rethrow :: Either ArgsErr a -> P a
+rethrow = either throwError pure
 
-expectMsg :: M ()
-expectMsg = do
-  st <- M get
-  case st of
-    SPacket pack ->
-      case pack of
-        PacketMsg msg -> M (put (SMsg msg))
-        _ -> M (throwError ErrNotMsg)
-    _ -> M (throwError ErrState)
+parseArgs :: P a -> Seq Datum -> Either ArgsErr a
+parseArgs m s = runExcept (evalStateT m s)
 
-expectAddr :: RawAddrPat -> M ()
-expectAddr wantAddr = do
-  st <- M get
-  case st of
-    SMsg (Msg actualAddr args) -> do
-      if actualAddr == wantAddr
-        then M (put (SArgs args))
-        else M (throwError (ErrAddrMismatch actualAddr wantAddr))
-    _ -> M (throwError ErrState)
+getArgRaw :: (Datum -> Either ArgsErr a) -> P a
+getArgRaw f = do
+  args <- get
+  case args of
+    Empty -> throwError ArgsErrEmpty
+    hd :<| tl -> do
+      a <- rethrow (f hd)
+      put tl
+      pure a
 
-expectExactDatum :: Datum -> M ()
-expectExactDatum wantDat = do
-  st <- M get
-  case st of
-    SArgs args ->
-      case args of
-        actualDat :<| rest ->
-          if actualDat == wantDat
-            then M (put (SArgs rest))
-            else M (throwError (ErrDatumMismatch (Just actualDat) wantDat))
-        Empty -> M (throwError (ErrDatumMismatch Nothing wantDat))
-    _ -> M (throwError ErrState)
+getArg :: P Datum
+getArg = getArgRaw Right
 
-data DatumReader a = DatumReader
-  { drType :: !DatumType
-  , drPrism :: !(Prism' Datum a)
+getArgExact :: Datum -> P ()
+getArgExact wantDat = getArgRaw $ \actualDat ->
+  if actualDat == wantDat
+    then Right ()
+    else Left (ArgsErrMismatch actualDat wantDat)
+
+data DatumPrism a = DatumPrism
+  { dpType :: !DatumType
+  , dpPrism :: !(Prism' Datum a)
   }
 
-drInt32 :: DatumReader Int32
-drInt32 =
-  DatumReader DatumTypeInt32 $
-    prism' DatumInt32 (\case DatumInt32 x -> Just x; _ -> Nothing)
+asInt32 :: DatumPrism Int32
+asInt32 = DatumPrism DatumTypeInt32 (gconstructor @"DatumInt32")
 
-drInt64 :: DatumReader Int64
-drInt64 =
-  DatumReader DatumTypeInt64 $
-    prism' DatumInt64 (\case DatumInt64 x -> Just x; _ -> Nothing)
+asInt64 :: DatumPrism Int64
+asInt64 = DatumPrism DatumTypeInt64 (gconstructor @"DatumInt64")
 
-drFloat :: DatumReader Float
-drFloat =
-  DatumReader DatumTypeFloat $
-    prism' DatumFloat (\case DatumFloat x -> Just x; _ -> Nothing)
+asFloat :: DatumPrism Float
+asFloat = DatumPrism DatumTypeFloat (gconstructor @"DatumFloat")
 
-drDouble :: DatumReader Double
-drDouble =
-  DatumReader DatumTypeDouble $
-    prism' DatumDouble (\case DatumDouble x -> Just x; _ -> Nothing)
+asDouble :: DatumPrism Double
+asDouble = DatumPrism DatumTypeDouble (gconstructor @"DatumDouble")
 
-drString :: DatumReader Text
-drString =
-  DatumReader DatumTypeString $
-    prism' DatumString (\case DatumString x -> Just x; _ -> Nothing)
+asString :: DatumPrism Text
+asString = DatumPrism DatumTypeString (gconstructor @"DatumString")
 
-drBlob :: DatumReader ShortByteString
-drBlob =
-  DatumReader DatumTypeBlob $
-    prism' DatumBlob (\case DatumBlob x -> Just x; _ -> Nothing)
+asBlob :: DatumPrism ShortByteString
+asBlob = DatumPrism DatumTypeBlob (gconstructor @"DatumBlob")
 
-drTime :: DatumReader NtpTime
-drTime =
-  DatumReader DatumTypeTime $
-    prism' DatumTime (\case DatumTime x -> Just x; _ -> Nothing)
+asTime :: DatumPrism NtpTime
+asTime = DatumPrism DatumTypeTime (gconstructor @"DatumTime")
 
-drMidi :: DatumReader PortMsg
-drMidi =
-  DatumReader DatumTypeMidi $
-    prism' DatumMidi (\case DatumMidi x -> Just x; _ -> Nothing)
+asMidi :: DatumPrism PortMsg
+asMidi = DatumPrism DatumTypeMidi (gconstructor @"DatumMidi")
 
-drGet :: DatumReader a -> Datum -> Either DatumType a
-drGet (DatumReader _ pr) dat =
+viewDatum :: DatumPrism a -> Datum -> Either DatumType a
+viewDatum (DatumPrism _ pr) dat =
   case preview pr dat of
     Just val -> Right val
     Nothing -> Left (datumType dat)
 
-drPut :: DatumReader a -> a -> Datum
-drPut (DatumReader _ pr) = review pr
+previewDatum :: DatumPrism a -> Datum -> Maybe a
+previewDatum dr = either (const Nothing) Just . viewDatum dr
 
-expectReadDatum :: DatumReader a -> M a
-expectReadDatum dr = do
-  st <- M get
-  case st of
-    SArgs args ->
-      case args of
-        actualDat :<| rest ->
-          case drGet dr actualDat of
-            Left actualTy -> M (throwError (ErrDatumTypeMismatch (Just actualTy) (drType dr)))
-            Right a -> M (put (SArgs rest)) >> pure a
-        Empty -> M (throwError (ErrDatumTypeMismatch Nothing (drType dr)))
-    _ -> M (throwError ErrState)
+reviewDatum :: DatumPrism a -> a -> Datum
+reviewDatum (DatumPrism _ pr) = review pr
 
-expectWhileArgs :: M a -> M (Seq a)
-expectWhileArgs act = go Empty
+getArgTyped :: DatumPrism a -> P a
+getArgTyped dr = getArgRaw $ \actualDat ->
+  case viewDatum dr actualDat of
+    Left actualTy -> Left (ArgsErrTyMismatch actualTy (dpType dr))
+    Right a -> Right a
+
+foldArgs :: s -> (s -> P s) -> P s
+foldArgs start f = go start
  where
-  go !acc = do
-    st <- M get
-    case st of
-      SArgs args ->
-        case args of
-          Empty -> pure acc
-          _ -> do
-            a <- act
-            st' <- M get
-            case st' of
-              SArgs args' | Seq.length args' < Seq.length args -> pure ()
-              _ -> M (throwError ErrState)
-            go (acc :|> a)
-      _ -> M (throwError ErrState)
+  go !val = do
+    args <- get
+    case args of
+      Empty -> pure val
+      _ -> do
+        val' <- f val
+        args' <- get
+        unless
+          (Seq.length args' < Seq.length args)
+          (error "Not consuming args")
+        go val'
 
-expectEndArgs :: M ()
-expectEndArgs = do
-  st <- M get
-  case st of
-    SArgs args ->
-      case args of
-        Empty -> pure ()
-        _ -> M (throwError (ErrDatumLeftoverArgs (Seq.length args)))
-    _ -> M (throwError ErrState)
+forArgs :: P a -> P (Seq a)
+forArgs act = foldArgs Empty (\s -> fmap (s :|>) act)
 
-data Serde a = Serde
-  { serdeTo :: !(a -> Packet)
-  , serdeFrom :: !(Packet -> Either Err a)
+endArgs :: P ()
+endArgs = do
+  args <- get
+  case args of
+    Empty -> pure ()
+    _ -> throwError (ArgsErrLeftover (Seq.length args))
+
+data DatumField b where
+  DatumField :: Prism' Datum a -> AffineTraversal' b a -> DatumField b
+
+previewDatumField :: DatumField b -> b -> Maybe Datum
+previewDatumField (DatumField x y) b = fmap (review x) (preview y b)
+
+setDatumField :: DatumField b -> b -> Datum -> Maybe b
+setDatumField (DatumField pri len) b v = fmap (flip (set len) b) (preview pri v)
+
+setFirstDatumField :: [DatumField b] -> b -> Datum -> Maybe b
+setFirstDatumField ss0 b v = foldr go Nothing ss0
+ where
+  go field = maybe id (const . Just) (setDatumField field b v)
+
+data Struct b = Struct
+  { structNull :: !b
+  , structRequired :: !(Set Text)
+  , structFields :: !(Text -> [DatumField b])
   }
+
+expectStruct :: Struct b -> P b
+expectStruct (Struct nul req fields) = do
+  (b', ks') <- foldArgs (nul, Set.empty) $ \(b, ks) -> do
+    k <- getArgTyped asString
+    v <- getArg
+    case setFirstDatumField (fields k) b v of
+      Nothing -> throwError (ArgsErrInvalidField k v)
+      Just b' -> pure (b', Set.insert k ks)
+  unless (Set.isSubsetOf ks' req) (throwError (ArgsErrMissingFields (Set.difference req ks')))
+  pure b'
+
+data AddrSerde a = AddrSerde
+  { addrSerdeTo :: !(a -> RawAddrPat)
+  , addrSerdeFrom :: !(RawAddrPat -> Maybe a)
+  }
+
+exactAddrSerde :: RawAddrPat -> AddrSerde ()
+exactAddrSerde pat = AddrSerde (const pat) (\pat' -> if pat == pat' then Just () else Nothing)
+
+data ArgsSerde b = ArgsSerde
+  { argsSerdeTo :: !(b -> Seq Datum)
+  , argsSerdeFrom :: !(Seq Datum -> Either ArgsErr b)
+  }
+
+mkArgsSerde :: (b -> Seq Datum) -> P b -> ArgsSerde b
+mkArgsSerde argsTo argsParser = ArgsSerde argsTo (parseArgs argsParser)
+
+structArgsSerde :: Struct b -> ArgsSerde b
+structArgsSerde struct = ArgsSerde to from
+ where
+  to = error "TODO"
+  from = parseArgs (expectStruct struct)
+
+data Serde a b = Serde {serdeAddr :: !(AddrSerde a), serdeArgs :: !(ArgsSerde b)}
+
+serdeTo :: Serde a b -> a -> b -> Msg
+serdeTo (Serde (AddrSerde addrTo _) (ArgsSerde argsTo _)) a b = Msg (addrTo a) (argsTo b)
+
+serdeFrom :: Serde a b -> Msg -> Maybe (a, Either ArgsErr b)
+serdeFrom (Serde (AddrSerde _ addrFrom) (ArgsSerde _ argsFrom)) (Msg addr args) =
+  fmap (,argsFrom args) (addrFrom addr)
 
 data Handshake = Handshake
   deriving stock (Eq, Ord, Show)
 
-handshakeS :: Serde Handshake
-handshakeS = Serde to from
+handshakeS :: Serde () Handshake
+handshakeS = Serde (exactAddrSerde "/dirt/handshake") (mkArgsSerde argsTo argsParser)
  where
-  to _ = PacketMsg (Msg "/dirt/handshake" Empty)
-  from = parse $ do
-    expectMsg
-    expectAddr "/dirt/handshake"
-    expectEndArgs
+  argsTo = const Empty
+  argsParser = do
+    endArgs
     pure Handshake
 
 data HandshakeReply = HandshakeReply
@@ -185,10 +212,10 @@ data HandshakeReply = HandshakeReply
   }
   deriving stock (Eq, Ord, Show)
 
-handshakeReplyS :: Serde HandshakeReply
-handshakeReplyS = Serde to from
+handshakeReplyS :: Serde () HandshakeReply
+handshakeReplyS = Serde (exactAddrSerde "/dirt/handshake/reply") (mkArgsSerde argsTo argsParser)
  where
-  to (HandshakeReply host port idxs) = PacketMsg (Msg "/dirt/handshake/reply" args)
+  argsTo (HandshakeReply host port idxs) = prefix <> fmap DatumInt32 idxs
    where
     prefix =
       Seq.fromList
@@ -198,14 +225,37 @@ handshakeReplyS = Serde to from
         , DatumInt32 port
         , DatumString "&controlBusIndices"
         ]
-    args = prefix <> fmap DatumInt32 idxs
-  from = parse $ do
-    expectMsg
-    expectAddr "/dirt/handshake/reply"
-    expectExactDatum (DatumString "&serverHostname")
-    host <- expectReadDatum drString
-    expectExactDatum (DatumString "&serverPort")
-    port <- expectReadDatum drInt32
-    expectExactDatum (DatumString "&controlBusIndices")
-    idxs <- expectWhileArgs (expectReadDatum drInt32)
+  argsParser = do
+    getArgExact (DatumString "&serverHostname")
+    host <- getArgTyped asString
+    getArgExact (DatumString "&serverPort")
+    port <- getArgTyped asInt32
+    getArgExact (DatumString "&controlBusIndices")
+    idxs <- forArgs (getArgTyped asInt32)
     pure (HandshakeReply host port idxs)
+
+data Play = Play
+  { playId :: !Text
+  , playOrbit :: !Int32
+  , playCps :: !Float
+  , playCycle :: !Float
+  , playDelta :: !Float
+  , playOther :: !(Map Text Datum)
+  }
+  deriving stock (Eq, Ord, Show, Generic)
+
+playStruct :: Struct Play
+playStruct = Struct nul req sets
+ where
+  nul = Play "" 0 0 0 0 Map.empty
+  req = Set.fromList ["_id_", "orbit", "cps", "cycle", "delta"]
+  sets = \case
+    "_id_" -> [DatumField (gconstructor @"DatumString") (gafield @"playId")]
+    "orbit" -> [DatumField (gconstructor @"DatumInt32") (gafield @"playOrbit")]
+    "cps" -> [DatumField (gconstructor @"DatumFloat") (gafield @"playCps")]
+    "cycle" -> [DatumField (gconstructor @"DatumFloat") (gafield @"playCycle")]
+    "delta" -> [DatumField (gconstructor @"DatumFloat") (gafield @"playDelta")]
+    k -> [DatumField (prism' id Just) (gafield @"playOther" % ix k)]
+
+playS :: Serde () Play
+playS = Serde (exactAddrSerde "/dirt/play") (structArgsSerde playStruct)
